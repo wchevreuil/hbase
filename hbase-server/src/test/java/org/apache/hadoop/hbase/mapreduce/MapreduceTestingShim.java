@@ -149,7 +149,13 @@ abstract public class MapreduceTestingShim {
     
     public JobConf obtainJobConf(MiniMRCluster cluster) {
       try {
-        Method meth = MiniMRCluster.class.getMethod("getJobTrackerConf", emptyParam);
+        // CLOUDERA-SPECIFIC-NOTE: We revert to the old way of calling createJobConf() API rather
+        // than the new getJobTrackerConf() API (which is used upstream). This is done because in
+        // CDH5, we are building against MR1 by default. These two APIs are exactly the
+        // same in MR2 and hadoop2, but different in MR1. For eg, mapred.job.tracker was not being
+        // set properly in MR1 with the new API. The fix is to revert to the old way of getting the
+        // conf.
+        Method meth = MiniMRCluster.class.getMethod("createJobConf", emptyParam);
         return (JobConf) meth.invoke(cluster, new Object []{});
       } catch (NoSuchMethodException nsme) {
         return null;

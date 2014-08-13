@@ -1209,6 +1209,24 @@
     <hadoop-two.version>${cdh.hadoop.version}</hadoop-two.version>
     <hadoop-two-minikdc.version>${hadoop-two.version}</hadoop-two-minikdc.version>
     <hadoop-three.version>3.0.0-SNAPSHOT</hadoop-three.version>
+	<!-- CLOUDERA-SPECIFIC-NOTE: This is Cloudera specific build param, and is used for building
+	hbase against mr1 profile.
+	In CDH5, hbase is built against the MR1 profile by default (See CDH-16257 for more ref).
+	This basically means that we now have a mix of modules from mr1 and mr2.
+
+	The following is the breakup of various dependencies b/w mr1 and mr2 modules:
+
+	a) hadoop1mr1 dependencies: org.apache.hadoop:hadoop-core, org.apache-hadoop:hadoop-client,
+	org.apache.hadoop:hadoop-minicluster
+	b) hadoop2 dependencies: org.apache.hadoop:hadoop-common, org.apache.hadoop:hadoop-annotations,
+	org.apache.hadoop:hadoop-auth, org.apache.hadoop:hadoop-hdfs.
+
+	This also means we removed all mr2 specific dependencies (hadoop-mapreduce-client-core,
+	 hadoop-mapreduce-client-jobclient) from the client.
+	 -->
+    <hadoop-two.mr1.version>${cdh.mr1.version}</hadoop-two.mr1.version>
+    <hadoop-two.yarn.version>${cdh.hadoop.version}</hadoop-two.yarn.version>
+    <hadoop-one.version>1.2.1</hadoop-one.version>
     <commons-cli.version>1.2</commons-cli.version>
     <commons-codec.version>1.9</commons-codec.version>
     <!-- pretty outdated -->
@@ -2005,11 +2023,11 @@
       <activation>
         <property>
             <!--Below formatting for dev-support/generate-hadoopX-poms.sh-->
-            <!--h2--><name>!hadoop.profile</name>
+            <name>hadoop.profile</name><value>2.0</value>
         </property>
       </activation>
       <modules>
-        <module>hbase-hadoop2-compat</module>
+         <module>hbase-hadoop2-compat</module>
       </modules>
       <properties>
         <hadoop.version>${hadoop-two.version}</hadoop.version>
@@ -2168,6 +2186,80 @@
         </dependencies>
       </dependencyManagement>
     </profile>
+
+    <!-- profile for building against CDH5. This is the default profile. -->
+    <profile>
+      <id>cdh5</id>
+      <activation>
+        <property>
+            <!--Below formatting for dev-support/generate-hadoopX-poms.sh-->
+            <!--h2--><name>!hadoop.profile</name>
+        </property>
+      </activation>
+      <modules>
+        <module>hbase-hadoop2-compat</module>
+      </modules>
+      <properties>
+        <hadoop.version>${hadoop-two.yarn.version}</hadoop.version>
+        <compat.module>hbase-hadoop2-compat</compat.module>
+        <assembly.file>src/main/assembly/hadoop-two-compat.xml</assembly.file>
+      </properties>
+      <!--  Please see the CLOUDERA-SPECIFIC-NOTE above on why we have a mix of mr1 and mr2
+       dependencies here. -->
+      <dependencyManagement>
+        <dependencies>
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-core</artifactId>
+            <version>${hadoop-two.mr1.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-hdfs</artifactId>
+            <version>${hadoop-two.yarn.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-hdfs</artifactId>
+            <version>${hadoop-two.yarn.version}</version>
+            <type>test-jar</type>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-auth</artifactId>
+            <version>${hadoop-two.yarn.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-common</artifactId>
+            <version>${hadoop-two.yarn.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-client</artifactId>
+            <version>${hadoop-two.mr1.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-annotations</artifactId>
+            <version>${hadoop-two.yarn.version}</version>
+          </dependency>
+          <!-- This was marked as test dep in earlier pom, but was scoped compile.
+            Where do we actually need it? -->
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-minicluster</artifactId>
+            <version>${hadoop-two.mr1.version}</version>
+          </dependency>
+          <dependency>
+            <groupId>org.apache.hadoop</groupId>
+            <artifactId>hadoop-minikdc</artifactId>
+            <version>${hadoop-two-minikdc.version}</version>
+          </dependency>
+        </dependencies>
+      </dependencyManagement>
+    </profile>
+
     <!--
       profile for building against Hadoop 3.0.0. Activate using:
        mvn -Dhadoop.profile=3.0

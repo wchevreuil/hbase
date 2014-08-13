@@ -53,7 +53,16 @@
         <outputDirectory>lib</outputDirectory>
         <unpack>false</unpack>
         <dependencySets>
-          <dependencySet/>
+          <dependencySet>
+  <!-- CLOUDERA-SPECIFIC-NOTE: In CDH5, HBase is built against the MR1 profile
+    by default (See CDH-16257 for more ref). We removed all hadoop-client and
+    hadoop-core jars from the packaged tar.gz file. The user should provide hadoop-core
+    and hadoop-client classes in his environment. This is done to avoid any classpath
+    clashes when he is running a Mapreduce job in a MR2/YARN environment -->
+            <excludes>
+              <exclude>org.apache.hadoop:hadoop-core</exclude>
+            </excludes>
+          </dependencySet>
         </dependencySets>
       </binaries>
     </moduleSet>
