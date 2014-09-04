@@ -31,4 +31,8 @@ public final class TagType {
   // String based tag type used in replication
   public static final byte STRING_VIS_TAG_TYPE = (byte) 7;
   public static final byte TTL_TAG_TYPE = (byte)8;
+
+  // mob tags
+  public static final byte MOB_REFERENCE_TAG_TYPE = (byte) 5;
+  public static final byte MOB_TABLE_NAME_TAG_TYPE = (byte) 6;
 }

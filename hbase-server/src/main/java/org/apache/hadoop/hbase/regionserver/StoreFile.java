@@ -976,7 +976,7 @@ public class StoreFile {
       return this.writer.getPath();
     }
 
-    boolean hasGeneralBloom() {
+    public boolean hasGeneralBloom() {
       return this.generalBloomFilterWriter != null;
     }
 

@@ -61,6 +61,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Tag;
 import org.apache.hadoop.hbase.TagType;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.KeyValue.KVComparator;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.conf.ConfigurationManager;
 import org.apache.hadoop.hbase.io.compress.Compression;
@@ -127,11 +128,11 @@ public class HStore implements Store {
 
   protected final MemStore memstore;
   // This stores directory in the filesystem.
-  private final HRegion region;
+  protected final HRegion region;
   private final HColumnDescriptor family;
   private final HRegionFileSystem fs;
-  private Configuration conf;
-  private final CacheConfig cacheConf;
+  protected Configuration conf;
+  protected CacheConfig cacheConf;
   private long lastCompactSize = 0;
   volatile boolean forceMajor = false;
   /* how many bytes to write between status checks */
@@ -239,7 +240,7 @@ public class HStore implements Store {
     this.offPeakHours = OffPeakHours.getInstance(conf);
 
     // Setting up cache configuration for this family
-    this.cacheConf = new CacheConfig(conf, family);
+    createCacheConf(family);
 
     this.verifyBulkLoads = conf.getBoolean("hbase.hstore.bulkload.verify", false);
 
@@ -258,7 +259,7 @@ public class HStore implements Store {
           "hbase.hstore.close.check.interval", 10*1000*1000 /* 10 MB */);
     }
 
-    this.storeEngine = StoreEngine.create(this, this.conf, this.comparator);
+    this.storeEngine = createStoreEngine(this, this.conf, this.comparator);
     this.storeEngine.getStoreFileManager().loadFiles(loadStoreFiles());
 
     // Initialize checksum type from name. The names are CRC32, CRC32C, etc.
@@ -330,6 +331,27 @@ public class HStore implements Store {
       cryptoContext.setCipher(cipher);
       cryptoContext.setKey(key);
     }
+  }
+
+  /**
+   * Creates the cache config.
+   * @param family The current column family.
+   */
+  protected void createCacheConf(final HColumnDescriptor family) {
+    this.cacheConf = new CacheConfig(conf, family);
+  }
+
+  /**
+   * Creates the store engine configured for the given Store.
+   * @param store The store. An unfortunate dependency needed due to it
+   *              being passed to coprocessors via the compactor.
+   * @param conf Store configuration.
+   * @param kvComparator KVComparator for storeFileManager.
+   * @return StoreEngine to use.
+   */
+  protected StoreEngine<?, ?, ?, ?> createStoreEngine(Store store, Configuration conf,
+      KVComparator kvComparator) throws IOException {
+    return StoreEngine.create(store, conf, comparator);
   }
 
   /**
@@ -2071,15 +2093,21 @@ public class HStore implements Store {
       if (this.getCoprocessorHost() != null) {
         scanner = this.getCoprocessorHost().preStoreScannerOpen(this, scan, targetCols);
       }
-      if (scanner == null) {
-        scanner = scan.isReversed() ? new ReversedStoreScanner(this,
-            getScanInfo(), scan, targetCols, readPt) : new StoreScanner(this,
-            getScanInfo(), scan, targetCols, readPt);
-      }
+      scanner = createScanner(scan, targetCols, readPt, scanner);
       return scanner;
     } finally {
       lock.readLock().unlock();
     }
+  }
+
+  protected KeyValueScanner createScanner(Scan scan, final NavigableSet<byte[]> targetCols,
+      long readPt, KeyValueScanner scanner) throws IOException {
+    if (scanner == null) {
+      scanner = scan.isReversed() ? new ReversedStoreScanner(this,
+          getScanInfo(), scan, targetCols, readPt) : new StoreScanner(this,
+          getScanInfo(), scan, targetCols, readPt);
+    }
+    return scanner;
   }
 
   @Override
