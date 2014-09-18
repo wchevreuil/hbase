@@ -103,14 +103,9 @@ public class DefaultCompactor extends Compactor {
           cleanSeqId = true;
         }
 
-        // When all MVCC readpoints are 0, don't write them.
-        // See HBASE-8166, HBASE-12600, and HBASE-13389.
-        writer = store.createWriterInTmp(fd.maxKeyCount, this.compactionCompression, true,
-          fd.maxMVCCReadpoint > 0, fd.maxTagsLength > 0, store.throttleCompaction(request.getSize()));
-
-        boolean finished =
-            performCompaction(scanner, writer, smallestReadPoint, cleanSeqId, throughputController);
-
+        writer = createTmpWriter(fd, store.throttleCompaction(request.getSize()));
+        boolean finished = performCompaction(fd, scanner, writer, smallestReadPoint, cleanSeqId,
+          throughputController, request.isAllFiles());
 
         if (!finished) {
           writer.close();
@@ -152,6 +147,25 @@ public class DefaultCompactor extends Compactor {
       }
     }
     return newFiles;
+  }
+
+  /**
+   * Creates a writer for a new file in a temporary directory.
+   * @param fd The file details.
+   * @return Writer for a new StoreFile in the tmp dir.
+   * @throws IOException
+   */
+  protected StoreFile.Writer createTmpWriter(FileDetails fd, boolean shouldDropBehind)
+    throws IOException {
+
+      // When all MVCC readpoints are 0, don't write them.
+      // See HBASE-8166, HBASE-12600, and HBASE-13389.
+
+      return store.createWriterInTmp(fd.maxKeyCount, this.compactionCompression,
+            /* isCompaction = */ true,
+            /* includeMVCCReadpoint = */ fd.maxMVCCReadpoint > 0,
+            /* includesTags = */ fd.maxTagsLength > 0,
+            /* shouldDropBehind = */ shouldDropBehind);
   }
 
   /**
