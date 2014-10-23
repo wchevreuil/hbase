@@ -49,6 +49,7 @@ import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.errorhandling.ForeignExceptionDispatcher;
 import org.apache.hadoop.hbase.io.HFileLink;
 import org.apache.hadoop.hbase.io.Reference;
+import org.apache.hadoop.hbase.mob.MobUtils;
 import org.apache.hadoop.hbase.monitoring.MonitoredTask;
 import org.apache.hadoop.hbase.monitoring.TaskMonitor;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.SnapshotDescription;
@@ -188,6 +189,8 @@ public class RestoreSnapshotHelper {
     // this instance, by removing the regions already present in the restore dir.
     Set<String> regionNames = new HashSet<String>(regionManifests.keySet());
 
+    HRegionInfo mobRegion = MobUtils.getMobRegionInfo(snapshotManifest.getTableDescriptor()
+        .getTableName());
     // Identify which region are still available and which not.
     // NOTE: we rely upon the region name as: "table name, start key, end key"
     List<HRegionInfo> tableRegions = getTableRegions();
@@ -208,6 +211,13 @@ public class RestoreSnapshotHelper {
       // Restore regions using the snapshot data
       monitor.rethrowException();
       status.setStatus("Restoring table regions...");
+      if (regionNames.contains(mobRegion.getEncodedName())) {
+        // restore the mob region in case
+        List<HRegionInfo> mobRegions = new ArrayList<HRegionInfo>(1);
+        mobRegions.add(mobRegion);
+        restoreHdfsMobRegions(exec, regionManifests, mobRegions);
+        regionNames.remove(mobRegion.getEncodedName());
+      }
       restoreHdfsRegions(exec, regionManifests, metaChanges.getRegionsToRestore());
       status.setStatus("Finished restoring all table regions.");
 
@@ -223,6 +233,11 @@ public class RestoreSnapshotHelper {
       List<HRegionInfo> regionsToAdd = new ArrayList<HRegionInfo>(regionNames.size());
 
       monitor.rethrowException();
+      // add the mob region
+      if (regionNames.contains(mobRegion.getEncodedName())) {
+        cloneHdfsMobRegion(regionManifests, mobRegion);
+        regionNames.remove(mobRegion.getEncodedName());
+      }
       for (String regionName: regionNames) {
         LOG.info("region to add: " + regionName);
         regionsToAdd.add(HRegionInfo.convert(regionManifests.get(regionName).getRegionInfo()));
@@ -398,6 +413,21 @@ public class RestoreSnapshotHelper {
     });
   }
 
+  /**
+   * Restore specified mob regions by restoring content to the snapshot state.
+   */
+  private void restoreHdfsMobRegions(final ThreadPoolExecutor exec,
+      final Map<String, SnapshotRegionManifest> regionManifests,
+      final List<HRegionInfo> regions) throws IOException {
+    if (regions == null || regions.size() == 0) return;
+    ModifyRegionUtils.editRegions(exec, regions, new ModifyRegionUtils.RegionEditTask() {
+      @Override
+      public void editRegion(final HRegionInfo hri) throws IOException {
+        restoreMobRegion(hri, regionManifests.get(hri.getEncodedName()));
+      }
+    });
+  }
+
   private Map<String, List<SnapshotRegionManifest.StoreFile>> getRegionHFileReferences(
       final SnapshotRegionManifest manifest) {
     Map<String, List<SnapshotRegionManifest.StoreFile>> familyMap =
@@ -479,6 +509,78 @@ public class RestoreSnapshotHelper {
   }
 
   /**
+   * Restore mob region by removing files not in the snapshot
+   * and adding the missing ones from the snapshot.
+   */
+  private void restoreMobRegion(final HRegionInfo regionInfo,
+      final SnapshotRegionManifest regionManifest) throws IOException {
+    if (regionManifest == null) {
+      return;
+    }
+    Map<String, List<SnapshotRegionManifest.StoreFile>> snapshotFiles =
+                getRegionHFileReferences(regionManifest);
+
+    Path regionDir = MobUtils.getMobRegionPath(conf, tableDesc.getTableName());
+    String tableName = tableDesc.getTableName().getNameAsString();
+
+    // Restore families present in the table
+    for (Path familyDir: FSUtils.getFamilyDirs(fs, regionDir)) {
+      byte[] family = Bytes.toBytes(familyDir.getName());
+      Set<String> familyFiles = getTableRegionFamilyFiles(familyDir);
+      List<SnapshotRegionManifest.StoreFile> snapshotFamilyFiles =
+          snapshotFiles.remove(familyDir.getName());
+      if (snapshotFamilyFiles != null) {
+        List<SnapshotRegionManifest.StoreFile> hfilesToAdd =
+            new ArrayList<SnapshotRegionManifest.StoreFile>();
+        for (SnapshotRegionManifest.StoreFile storeFile: snapshotFamilyFiles) {
+          if (familyFiles.contains(storeFile.getName())) {
+            // HFile already present
+            familyFiles.remove(storeFile.getName());
+          } else {
+            // HFile missing
+            hfilesToAdd.add(storeFile);
+          }
+        }
+
+        // Remove hfiles not present in the snapshot
+        for (String hfileName: familyFiles) {
+          Path hfile = new Path(familyDir, hfileName);
+          LOG.trace("Removing hfile=" + hfileName +
+            " from region=" + regionInfo.getEncodedName() + " table=" + tableName);
+          HFileArchiver.archiveStoreFile(conf, fs, regionInfo, tableDir, family, hfile);
+        }
+
+        // Restore Missing files
+        for (SnapshotRegionManifest.StoreFile storeFile: hfilesToAdd) {
+          LOG.debug("Adding HFileLink " + storeFile.getName() +
+            " to region=" + regionInfo.getEncodedName() + " table=" + tableName);
+          restoreStoreFile(familyDir, regionInfo, storeFile);
+        }
+      } else {
+        // Family doesn't exists in the snapshot
+        LOG.trace("Removing family=" + Bytes.toString(family) +
+          " from region=" + regionInfo.getEncodedName() + " table=" + tableName);
+        HFileArchiver.archiveFamily(fs, conf, regionInfo, tableDir, family);
+        fs.delete(familyDir, true);
+      }
+    }
+
+    // Add families not present in the table
+    for (Map.Entry<String, List<SnapshotRegionManifest.StoreFile>> familyEntry:
+                                                                      snapshotFiles.entrySet()) {
+      Path familyDir = new Path(regionDir, familyEntry.getKey());
+      if (!fs.mkdirs(familyDir)) {
+        throw new IOException("Unable to create familyDir=" + familyDir);
+      }
+
+      for (SnapshotRegionManifest.StoreFile storeFile: familyEntry.getValue()) {
+        LOG.trace("Adding HFileLink " + storeFile.getName() + " to table=" + tableName);
+        restoreStoreFile(familyDir, regionInfo, storeFile);
+      }
+    }
+  }
+
+  /**
    * @return The set of files in the specified family directory.
    */
   private Set<String> getTableRegionFamilyFiles(final Path familyDir) throws IOException {
@@ -534,6 +636,40 @@ public class RestoreSnapshotHelper {
       });
 
     return clonedRegionsInfo;
+  }
+
+  /**
+   * Clone the mob region. For the region create a new region
+   * and create a HFileLink for each hfile.
+   */
+  private void cloneHdfsMobRegion(final Map<String, SnapshotRegionManifest> regionManifests,
+      final HRegionInfo region) throws IOException {
+    // clone region info (change embedded tableName with the new one)
+    Path clonedRegionPath = MobUtils.getMobRegionPath(conf, tableDesc.getTableName());
+    cloneRegion(clonedRegionPath, region, regionManifests.get(region.getEncodedName()));
+  }
+
+  /**
+   * Clone region directory content from the snapshot info.
+   *
+   * Each region is encoded with the table name, so the cloned region will have
+   * a different region name.
+   *
+   * Instead of copying the hfiles a HFileLink is created.
+   *
+   * @param regionDir {@link Path} cloned dir
+   * @param snapshotRegionInfo
+   */
+  private void cloneRegion(final Path regionDir, final HRegionInfo snapshotRegionInfo,
+      final SnapshotRegionManifest manifest) throws IOException {
+    final String tableName = tableDesc.getTableName().getNameAsString();
+    for (SnapshotRegionManifest.FamilyFiles familyFiles: manifest.getFamilyFilesList()) {
+      Path familyDir = new Path(regionDir, familyFiles.getFamilyName().toStringUtf8());
+      for (SnapshotRegionManifest.StoreFile storeFile: familyFiles.getStoreFilesList()) {
+        LOG.info("Adding HFileLink " + storeFile.getName() + " to table=" + tableName);
+        restoreStoreFile(familyDir, snapshotRegionInfo, storeFile);
+      }
+    }
   }
 
   /**
