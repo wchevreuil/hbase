@@ -37,6 +37,8 @@ import org.apache.hadoop.hbase.io.hfile.CacheConfig;
 import org.apache.hadoop.hbase.io.hfile.CacheStats;
 import org.apache.hadoop.hbase.wal.BoundedRegionGroupingProvider;
 import org.apache.hadoop.hbase.wal.DefaultWALProvider;
+import org.apache.hadoop.hbase.mob.MobCacheConfig;
+import org.apache.hadoop.hbase.mob.MobFileCache;
 import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
@@ -55,6 +57,7 @@ class MetricsRegionServerWrapperImpl
   private final HRegionServer regionServer;
 
   private BlockCache blockCache;
+  private MobFileCache mobFileCache;
 
   private volatile long numStores = 0;
   private volatile long numWALFiles = 0;
@@ -81,6 +84,20 @@ class MetricsRegionServerWrapperImpl
   private volatile long compactedCellsSize = 0;
   private volatile long majorCompactedCellsSize = 0;
   private volatile long blockedRequestsCount = 0L;
+  private volatile long mobCompactedIntoMobCellsCount = 0;
+  private volatile long mobCompactedFromMobCellsCount = 0;
+  private volatile long mobCompactedIntoMobCellsSize = 0;
+  private volatile long mobCompactedFromMobCellsSize = 0;
+  private volatile long mobFlushCount = 0;
+  private volatile long mobFlushedCellsCount = 0;
+  private volatile long mobFlushedCellsSize = 0;
+  private volatile long mobScanCellsCount = 0;
+  private volatile long mobScanCellsSize = 0;
+  private volatile long mobFileCacheAccessCount = 0;
+  private volatile long mobFileCacheMissCount = 0;
+  private volatile double mobFileCacheHitRatio = 0;
+  private volatile long mobFileCacheEvictedCount = 0;
+  private volatile long mobFileCacheCount = 0;
 
   private CacheStats cacheStats;
   private ScheduledExecutorService executor;
@@ -95,6 +112,7 @@ class MetricsRegionServerWrapperImpl
   public MetricsRegionServerWrapperImpl(final HRegionServer regionServer) {
     this.regionServer = regionServer;
     initBlockCache();
+    initMobFileCache();
 
     this.period =
         regionServer.conf.getLong(HConstants.REGIONSERVER_METRICS_PERIOD,
@@ -128,6 +146,16 @@ class MetricsRegionServerWrapperImpl
 
     if (this.blockCache != null && this.cacheStats == null) {
       this.cacheStats = blockCache.getStats();
+    }
+  }
+
+  /**
+   * Initializes the mob file cache.
+   */
+  private synchronized void initMobFileCache() {
+    MobCacheConfig mobCacheConfig = this.regionServer.mobCacheConfig;
+    if (mobCacheConfig != null && this.mobFileCache == null) {
+      this.mobFileCache = mobCacheConfig.getMobFileCache();
     }
   }
 
@@ -468,6 +496,76 @@ class MetricsRegionServerWrapperImpl
     return majorCompactedCellsSize;
   }
 
+  @Override
+  public long getMobCompactedFromMobCellsCount() {
+    return mobCompactedFromMobCellsCount;
+  }
+
+  @Override
+  public long getMobCompactedIntoMobCellsCount() {
+    return mobCompactedIntoMobCellsCount;
+  }
+
+  @Override
+  public long getMobCompactedFromMobCellsSize() {
+    return mobCompactedFromMobCellsSize;
+  }
+
+  @Override
+  public long getMobCompactedIntoMobCellsSize() {
+    return mobCompactedIntoMobCellsSize;
+  }
+
+  @Override
+  public long getMobFlushCount() {
+    return mobFlushCount;
+  }
+
+  @Override
+  public long getMobFlushedCellsCount() {
+    return mobFlushedCellsCount;
+  }
+
+  @Override
+  public long getMobFlushedCellsSize() {
+    return mobFlushedCellsSize;
+  }
+
+  @Override
+  public long getMobScanCellsCount() {
+    return mobScanCellsCount;
+  }
+
+  @Override
+  public long getMobScanCellsSize() {
+    return mobScanCellsSize;
+  }
+
+  @Override
+  public long getMobFileCacheAccessCount() {
+    return mobFileCacheAccessCount;
+  }
+
+  @Override
+  public long getMobFileCacheMissCount() {
+    return mobFileCacheMissCount;
+  }
+
+  @Override
+  public long getMobFileCacheCount() {
+    return mobFileCacheCount;
+  }
+
+  @Override
+  public long getMobFileCacheEvictedCount() {
+    return mobFileCacheEvictedCount;
+  }
+
+  @Override
+  public int getMobFileCacheHitPercent() {
+    return (int) (mobFileCacheHitRatio * 100);
+  }
+
   /**
    * This is the runnable that will be executed on the executor every PERIOD number of seconds
    * It will take metrics/numbers from all of the regions and use them to compute point in
@@ -482,6 +580,7 @@ class MetricsRegionServerWrapperImpl
     synchronized public void run() {
       try {
         initBlockCache();
+        initMobFileCache();
         cacheStats = blockCache.getStats();
 
         HDFSBlocksDistribution hdfsBlocksDistribution = new HDFSBlocksDistribution();
@@ -510,6 +609,15 @@ class MetricsRegionServerWrapperImpl
         long tempCompactedCellsSize = 0;
         long tempMajorCompactedCellsSize = 0;
         long tempBlockedRequestsCount = 0L;
+        long tempMobCompactedIntoMobCellsCount = 0;
+	long tempMobCompactedFromMobCellsCount = 0;
+	long tempMobCompactedIntoMobCellsSize = 0;
+	long testMobCompactedFromMobCellsSize = 0;
+	long tempMobFlushCount = 0;
+	long tempMobFlushedCellsCount = 0;
+	long tempMobFlushedCellsSize = 0;
+	long tempMobScanCellsCount = 0;
+	long tempMobScanCellsSize = 0;
 
         for (Region r : regionServer.getOnlineRegionsLocalContext()) {
           tempNumMutationsWithoutWAL += r.getNumMutationsWithoutWAL();
@@ -534,6 +642,18 @@ class MetricsRegionServerWrapperImpl
             tempFlushedCellsSize += store.getFlushedCellsSize();
             tempCompactedCellsSize += store.getCompactedCellsSize();
             tempMajorCompactedCellsSize += store.getMajorCompactedCellsSize();
+            if (store instanceof HMobStore) {
+              HMobStore mobStore = (HMobStore) store;
+              tempMobCompactedIntoMobCellsCount += mobStore.getMobCompactedIntoMobCellsCount();
+              tempMobCompactedFromMobCellsCount += mobStore.getMobCompactedFromMobCellsCount();
+              tempMobCompactedIntoMobCellsSize += mobStore.getMobCompactedIntoMobCellsSize();
+              testMobCompactedFromMobCellsSize += mobStore.getMobCompactedFromMobCellsSize();
+              tempMobFlushCount += mobStore.getMobFlushCount();
+              tempMobFlushedCellsCount += mobStore.getMobFlushedCellsCount();
+              tempMobFlushedCellsSize += mobStore.getMobFlushedCellsSize();
+              tempMobScanCellsCount += mobStore.getMobScanCellsCount();
+              tempMobScanCellsSize += mobStore.getMobScanCellsSize();
+            }
           }
 
           HDFSBlocksDistribution distro = r.getHDFSBlocksDistribution();
@@ -601,6 +721,20 @@ class MetricsRegionServerWrapperImpl
         compactedCellsSize = tempCompactedCellsSize;
         majorCompactedCellsSize = tempMajorCompactedCellsSize;
         blockedRequestsCount = tempBlockedRequestsCount;
+        mobCompactedIntoMobCellsCount = tempMobCompactedIntoMobCellsCount;
+        mobCompactedFromMobCellsCount = tempMobCompactedFromMobCellsCount;
+        mobCompactedIntoMobCellsSize = tempMobCompactedIntoMobCellsSize;
+        mobCompactedFromMobCellsSize = testMobCompactedFromMobCellsSize;
+        mobFlushCount = tempMobFlushCount;
+        mobFlushedCellsCount = tempMobFlushedCellsCount;
+        mobFlushedCellsSize = tempMobFlushedCellsSize;
+        mobScanCellsCount = tempMobScanCellsCount;
+        mobScanCellsSize = tempMobScanCellsSize;
+        mobFileCacheAccessCount = mobFileCache.getAccessCount();
+        mobFileCacheMissCount = mobFileCache.getMissCount();
+        mobFileCacheHitRatio = mobFileCache.getHitRatio();
+        mobFileCacheEvictedCount = mobFileCache.getEvictedFileCount();
+        mobFileCacheCount = mobFileCache.getCacheSize();
       } catch (Throwable e) {
         LOG.warn("Caught exception! Will suppress and retry.", e);
       }

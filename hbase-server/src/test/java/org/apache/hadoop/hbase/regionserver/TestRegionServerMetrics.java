@@ -64,6 +64,7 @@ public class TestRegionServerMetrics {
     // Make the failure test faster
     conf.setInt("zookeeper.recovery.retry", 0);
     conf.setInt(HConstants.REGIONSERVER_INFO_PORT, -1);
+    conf.setInt("hfile.format.version", 3);
 
     TEST_UTIL.startMiniCluster(1, 1);
     cluster = TEST_UTIL.getHBaseCluster();
@@ -503,5 +504,67 @@ public class TestRegionServerMetrics {
     assertEquals(true, timeRangeCountUpdated);
 
     table.close();
+  }
+
+  @Test
+  public void testMobMetrics() throws IOException, InterruptedException {
+    String tableNameString = "testMobMetrics";
+    TableName tableName = TableName.valueOf(tableNameString);
+    byte[] cf = Bytes.toBytes("d");
+    byte[] qualifier = Bytes.toBytes("qual");
+    byte[] val = Bytes.toBytes("mobdata");
+    int compactionThreshold = conf.getInt("hbase.hstore.compactionThreshold", 3);
+    HTableDescriptor htd = new HTableDescriptor(tableName);
+    HColumnDescriptor hcd = new HColumnDescriptor(cf);
+    hcd.setMobEnabled(true);
+    hcd.setMobThreshold(0);
+    htd.addFamily(hcd);
+    HBaseAdmin admin = new HBaseAdmin(conf);
+    HTable t = TEST_UTIL.createTable(htd, new byte[0][0], conf);
+    HRegion region = rs.getOnlineRegions(tableName).get(0);
+    t.setAutoFlush(true, true);
+    for (int insertCount = 0; insertCount < compactionThreshold; insertCount++) {
+      Put p = new Put(Bytes.toBytes(insertCount));
+      p.add(cf, qualifier, val);
+      t.put(p);
+      admin.flush(tableName);
+    }
+    metricsRegionServer.getRegionServerWrapper().forceRecompute();
+    metricsHelper.assertCounter("mobFlushCount", compactionThreshold, serverSource);
+    Scan scan = new Scan(Bytes.toBytes(0), Bytes.toBytes(2));
+    ResultScanner scanner = t.getScanner(scan);
+    scanner.next(100);
+    scanner.close();
+    metricsRegionServer.getRegionServerWrapper().forceRecompute();
+    metricsHelper.assertCounter("mobScanCellsCount", 2, serverSource);
+    region.getTableDesc().getFamily(cf).setMobThreshold(100);
+    region.initialize();
+    region.compactStores(true);
+    metricsRegionServer.getRegionServerWrapper().forceRecompute();
+    metricsHelper.assertCounter("mobCompactedFromMobCellsCount", compactionThreshold,
+        serverSource);
+    metricsHelper.assertCounter("mobCompactedIntoMobCellsCount", 0, serverSource);
+    scanner = t.getScanner(scan);
+    scanner.next(100);
+    metricsRegionServer.getRegionServerWrapper().forceRecompute();
+    // metrics are reset by the region initialization
+    metricsHelper.assertCounter("mobScanCellsCount", 0, serverSource);
+    for (int insertCount = compactionThreshold;
+        insertCount < 2 * compactionThreshold - 1; insertCount++) {
+      Put p = new Put(Bytes.toBytes(insertCount));
+      p.add(cf, qualifier, val);
+      t.put(p);
+      admin.flush(tableName);
+    }
+    region.getTableDesc().getFamily(cf).setMobThreshold(0);
+    region.initialize();
+    region.compactStores(true);
+    metricsRegionServer.getRegionServerWrapper().forceRecompute();
+    // metrics are reset by the region initialization
+    metricsHelper.assertCounter("mobCompactedFromMobCellsCount", 0, serverSource);
+    metricsHelper.assertCounter("mobCompactedIntoMobCellsCount", 2 * compactionThreshold - 1,
+        serverSource);
+    t.close();
+    admin.close();
   }
 }
