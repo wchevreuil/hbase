@@ -612,7 +612,7 @@ class MetricsRegionServerWrapperImpl
         long tempMobCompactedIntoMobCellsCount = 0;
 	long tempMobCompactedFromMobCellsCount = 0;
 	long tempMobCompactedIntoMobCellsSize = 0;
-	long testMobCompactedFromMobCellsSize = 0;
+	long tempMobCompactedFromMobCellsSize = 0;
 	long tempMobFlushCount = 0;
 	long tempMobFlushedCellsCount = 0;
 	long tempMobFlushedCellsSize = 0;
@@ -647,7 +647,7 @@ class MetricsRegionServerWrapperImpl
               tempMobCompactedIntoMobCellsCount += mobStore.getMobCompactedIntoMobCellsCount();
               tempMobCompactedFromMobCellsCount += mobStore.getMobCompactedFromMobCellsCount();
               tempMobCompactedIntoMobCellsSize += mobStore.getMobCompactedIntoMobCellsSize();
-              testMobCompactedFromMobCellsSize += mobStore.getMobCompactedFromMobCellsSize();
+              tempMobCompactedFromMobCellsSize += mobStore.getMobCompactedFromMobCellsSize();
               tempMobFlushCount += mobStore.getMobFlushCount();
               tempMobFlushedCellsCount += mobStore.getMobFlushedCellsCount();
               tempMobFlushedCellsSize += mobStore.getMobFlushedCellsSize();
@@ -724,7 +724,7 @@ class MetricsRegionServerWrapperImpl
         mobCompactedIntoMobCellsCount = tempMobCompactedIntoMobCellsCount;
         mobCompactedFromMobCellsCount = tempMobCompactedFromMobCellsCount;
         mobCompactedIntoMobCellsSize = tempMobCompactedIntoMobCellsSize;
-        mobCompactedFromMobCellsSize = testMobCompactedFromMobCellsSize;
+        mobCompactedFromMobCellsSize = tempMobCompactedFromMobCellsSize;
         mobFlushCount = tempMobFlushCount;
         mobFlushedCellsCount = tempMobFlushedCellsCount;
         mobFlushedCellsSize = tempMobFlushedCellsSize;
