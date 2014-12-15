@@ -124,20 +124,19 @@ public class AccessControlLists {
    * @throws IOException
    */
   static void createACLTable(MasterServices master) throws IOException {
-    master.createTable(new HTableDescriptor(ACL_TABLE_NAME)
-      .addFamily(new HColumnDescriptor(ACL_LIST_FAMILY)
-        .setMaxVersions(1)
-        .setInMemory(true)
-        .setBlockCacheEnabled(true)
-        .setBlocksize(8 * 1024)
-        .setBloomFilterType(BloomType.NONE)
-        .setScope(HConstants.REPLICATION_SCOPE_LOCAL)
-        // Set cache data blocks in L1 if more than one cache tier deployed; e.g. this will
-        // be the case if we are using CombinedBlockCache (Bucket Cache).
-        .setCacheDataInL1(true)),
-    null,
-    HConstants.NO_NONCE,
-    HConstants.NO_NONCE);
+    HTableDescriptor htd = new HTableDescriptor(ACL_TABLE_NAME);
+    HColumnDescriptor hcd = new HColumnDescriptor(ACL_LIST_FAMILY);
+    hcd.setMaxVersions(1);
+    hcd.setInMemory(true);
+    hcd.setBlockCacheEnabled(true);
+    hcd.setBlocksize(8 * 1024);
+    hcd.setBloomFilterType(BloomType.NONE);
+    hcd.setScope(HConstants.REPLICATION_SCOPE_LOCAL);
+    // Set cache data blocks in L1 if more than one cache tier deployed; e.g. this will
+    // be the case if we are using CombinedBlockCache (Bucket Cache).
+    hcd.setCacheDataInL1(true);
+    htd.addFamily(hcd);
+    master.createTable(htd, null, HConstants.NO_NONCE, HConstants.NO_NONCE);
   }
 
   /**

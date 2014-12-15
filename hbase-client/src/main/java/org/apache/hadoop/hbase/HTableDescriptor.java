@@ -534,19 +534,17 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param value The value.
    * @see #values
    */
-  public HTableDescriptor setValue(byte[] key, byte[] value) {
+  public void setValue(byte[] key, byte[] value) {
     setValue(new ImmutableBytesWritable(key), new ImmutableBytesWritable(value));
-    return this;
   }
 
   /*
    * @param key The key.
    * @param value The value.
    */
-  private HTableDescriptor setValue(final ImmutableBytesWritable key,
+  private void setValue(final ImmutableBytesWritable key,
       final String value) {
     setValue(key, new ImmutableBytesWritable(Bytes.toBytes(value)));
-    return this;
   }
 
   /*
@@ -555,17 +553,16 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param key The key.
    * @param value The value.
    */
-  public HTableDescriptor setValue(final ImmutableBytesWritable key,
+  public void setValue(final ImmutableBytesWritable key,
       final ImmutableBytesWritable value) {
     if (key.compareTo(DEFERRED_LOG_FLUSH_KEY) == 0) {
       boolean isDeferredFlush = Boolean.valueOf(Bytes.toString(value.get()));
       LOG.warn("HTableDescriptor property:" + DEFERRED_LOG_FLUSH + " is deprecated, " +
           "use " + DURABILITY + " instead");
       setDurability(isDeferredFlush ? Durability.ASYNC_WAL : DEFAULT_DURABLITY);
-      return this;
+    } else {
+      values.put(key, value);
     }
-    values.put(key, value);
-    return this;
   }
 
   /**
@@ -575,13 +572,12 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param value The value.
    * @see #values
    */
-  public HTableDescriptor setValue(String key, String value) {
+  public void setValue(String key, String value) {
     if (value == null) {
       remove(key);
     } else {
       setValue(Bytes.toBytes(key), Bytes.toBytes(value));
     }
-    return this;
   }
 
   /**
@@ -632,8 +628,8 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param readOnly True if all of the columns in the table should be read
    * only.
    */
-  public HTableDescriptor setReadOnly(final boolean readOnly) {
-    return setValue(READONLY_KEY, readOnly? TRUE: FALSE);
+  public void setReadOnly(final boolean readOnly) {
+    setValue(READONLY_KEY, readOnly? TRUE: FALSE);
   }
 
   /**
@@ -651,9 +647,8 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    *
    * @param isEnable True if enable compaction.
    */
-  public HTableDescriptor setCompactionEnabled(final boolean isEnable) {
+  public void setCompactionEnabled(final boolean isEnable) {
     setValue(COMPACTION_ENABLED_KEY, isEnable ? TRUE : FALSE);
-    return this;
   }
 
   /**
@@ -680,10 +675,9 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * Sets the {@link Durability} setting for the table. This defaults to Durability.USE_DEFAULT.
    * @param durability enum value
    */
-  public HTableDescriptor setDurability(Durability durability) {
+  public void setDurability(Durability durability) {
     this.durability = durability;
     setValue(DURABILITY_KEY, durability.name());
-    return this;
   }
 
   /**
@@ -766,16 +760,14 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param name name of table
    */
   @Deprecated
-  public HTableDescriptor setName(byte[] name) {
+  public void setName(byte[] name) {
     setName(TableName.valueOf(name));
-    return this;
   }
 
   @Deprecated
-  public HTableDescriptor setName(TableName name) {
+  public void setName(TableName name) {
     this.name = name;
     setMetaFlags(this.name);
-    return this;
   }
 
   /**
@@ -810,9 +802,8 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param maxFileSize The maximum file size that a store file can grow to
    * before a split is triggered.
    */
-  public HTableDescriptor setMaxFileSize(long maxFileSize) {
+  public void setMaxFileSize(long maxFileSize) {
     setValue(MAX_FILESIZE_KEY, Long.toString(maxFileSize));
-    return this;
   }
 
   /**
@@ -836,9 +827,8 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    *
    * @param memstoreFlushSize memory cache flush size for each hregion
    */
-  public HTableDescriptor setMemStoreFlushSize(long memstoreFlushSize) {
+  public void setMemStoreFlushSize(long memstoreFlushSize) {
     setValue(MEMSTORE_FLUSHSIZE_KEY, Long.toString(memstoreFlushSize));
-    return this;
   }
 
   /**
@@ -868,7 +858,7 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * For the updating purpose please use {@link #modifyFamily(HColumnDescriptor)} instead.
    * @param family HColumnDescriptor of family to add.
    */
-  public HTableDescriptor addFamily(final HColumnDescriptor family) {
+  public void addFamily(final HColumnDescriptor family) {
     if (family.getName() == null || family.getName().length <= 0) {
       throw new IllegalArgumentException("Family name cannot be null or empty");
     }
@@ -877,7 +867,6 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
         family.getNameAsString() + "' already exists so cannot be added");
     }
     this.families.put(family.getName(), family);
-    return this;
   }
 
   /**
@@ -1314,9 +1303,8 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param className Full class name.
    * @throws IOException
    */
-  public HTableDescriptor addCoprocessor(String className) throws IOException {
+  public void addCoprocessor(String className) throws IOException {
     addCoprocessor(className, null, Coprocessor.PRIORITY_USER, null);
-    return this;
   }
 
   /**
@@ -1333,7 +1321,7 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param kvs Arbitrary key-value parameter pairs passed into the coprocessor.
    * @throws IOException
    */
-  public HTableDescriptor addCoprocessor(String className, Path jarFilePath,
+  public void addCoprocessor(String className, Path jarFilePath,
                              int priority, final Map<String, String> kvs)
   throws IOException {
     checkHasCoprocessor(className);
@@ -1361,7 +1349,7 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
     String value = ((jarFilePath == null)? "" : jarFilePath.toString()) +
         "|" + className + "|" + Integer.toString(priority) + "|" +
         kvString.toString();
-    return addCoprocessorToMap(value);
+    addCoprocessorToMap(value);
   }
 
   /**
@@ -1581,19 +1569,18 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
       });
 
   @Deprecated
-  public HTableDescriptor setOwner(User owner) {
-    return setOwnerString(owner != null ? owner.getShortName() : null);
+  public void setOwner(User owner) {
+    setOwnerString(owner != null ? owner.getShortName() : null);
   }
 
   // used by admin.rb:alter(table_name,*args) to update owner.
   @Deprecated
-  public HTableDescriptor setOwnerString(String ownerString) {
+  public void setOwnerString(String ownerString) {
     if (ownerString != null) {
       setValue(OWNER_KEY, ownerString);
     } else {
       remove(OWNER_KEY);
     }
-    return this;
   }
 
   @Deprecated
@@ -1706,13 +1693,12 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
    * @param key Config key. Same as XML config key e.g. hbase.something.or.other.
    * @param value String value. If null, removes the setting.
    */
-  public HTableDescriptor setConfiguration(String key, String value) {
+  public void setConfiguration(String key, String value) {
     if (value == null) {
       removeConfiguration(key);
     } else {
       configuration.put(key, value);
     }
-    return this;
   }
 
   /**

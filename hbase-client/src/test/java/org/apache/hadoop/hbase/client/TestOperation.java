@@ -417,36 +417,5 @@ public class TestOperation {
     Assert.assertEquals(1970L, p.getTimeStamp());
     Assert.assertEquals(0, KeyValue.COMPARATOR.compare(c.get(0), new KeyValue(c.get(0))));
   }
-
-  @Test
-  @SuppressWarnings("rawtypes")
-  public void testOperationSubClassMethodsAreBuilderStyle() {
-    /* All Operation subclasses should have a builder style setup where setXXX/addXXX methods
-     * can be chainable together:
-     * . For example:
-     * Scan scan = new Scan()
-     *     .setFoo(foo)
-     *     .setBar(bar)
-     *     .setBuz(buz)
-     *
-     * This test ensures that all methods starting with "set" returns the declaring object
-     */
-
-    // TODO: We should ensure all subclasses of Operation is checked.
-    Class[] classes = new Class[] {
-        Operation.class,
-        OperationWithAttributes.class,
-        Mutation.class,
-        Query.class,
-        Delete.class,
-        Increment.class,
-        Append.class,
-        Put.class,
-        Get.class,
-        Scan.class};
-
-    BuilderStyleTest.assertClassesAreBuilderStyle(classes);
-  }
-
 }
 

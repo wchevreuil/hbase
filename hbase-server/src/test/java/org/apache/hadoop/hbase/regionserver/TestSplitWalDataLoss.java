@@ -83,7 +83,9 @@ public class TestSplitWalDataLoss {
     testUtil.startMiniCluster(2);
     HBaseAdmin admin = testUtil.getHBaseAdmin();
     admin.createNamespace(namespace);
-    admin.createTable(new HTableDescriptor(tableName).addFamily(new HColumnDescriptor(family)));
+    HTableDescriptor hTableDescriptor = new HTableDescriptor(tableName);
+    hTableDescriptor.addFamily(new HColumnDescriptor(family));
+    admin.createTable(hTableDescriptor);
     testUtil.waitTableAvailable(tableName);
   }
 

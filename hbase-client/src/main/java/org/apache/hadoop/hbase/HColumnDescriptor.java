@@ -1490,13 +1490,12 @@ public class HColumnDescriptor implements WritableComparable<HColumnDescriptor> 
    * @param key Config key. Same as XML config key e.g. hbase.something.or.other.
    * @param value String value. If null, removes the configuration.
    */
-  public HColumnDescriptor setConfiguration(String key, String value) {
+  public void setConfiguration(String key, String value) {
     if (value == null) {
       removeConfiguration(key);
     } else {
       configuration.put(key, value);
     }
-    return this;
   }
 
   /**

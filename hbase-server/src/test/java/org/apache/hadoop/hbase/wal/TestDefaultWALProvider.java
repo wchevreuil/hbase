@@ -185,12 +185,10 @@ public class TestDefaultWALProvider {
   @Test
   public void testLogCleaning() throws Exception {
     LOG.info("testLogCleaning");
-    final HTableDescriptor htd =
-        new HTableDescriptor(TableName.valueOf("testLogCleaning")).addFamily(new HColumnDescriptor(
-            "row"));
-    final HTableDescriptor htd2 =
-        new HTableDescriptor(TableName.valueOf("testLogCleaning2"))
-            .addFamily(new HColumnDescriptor("row"));
+    final HTableDescriptor htd = new HTableDescriptor(TableName.valueOf("testLogCleaning"));
+    htd.addFamily(new HColumnDescriptor("row"));
+    final HTableDescriptor htd2 = new HTableDescriptor(TableName.valueOf("testLogCleaning2"));
+    htd2.addFamily(new HColumnDescriptor("row"));
     final Configuration localConf = new Configuration(conf);
     localConf.set(WALFactory.WAL_PROVIDER, DefaultWALProvider.class.getName());
     final WALFactory wals = new WALFactory(localConf, null, currentTest.getMethodName());
@@ -260,10 +258,10 @@ public class TestDefaultWALProvider {
   @Test
   public void testWALArchiving() throws IOException {
     LOG.debug("testWALArchiving");
-    HTableDescriptor table1 =
-        new HTableDescriptor(TableName.valueOf("t1")).addFamily(new HColumnDescriptor("row"));
-    HTableDescriptor table2 =
-        new HTableDescriptor(TableName.valueOf("t2")).addFamily(new HColumnDescriptor("row"));
+    HTableDescriptor table1 = new HTableDescriptor(TableName.valueOf("t1"));
+    table1.addFamily(new HColumnDescriptor("row"));
+    HTableDescriptor table2 = new HTableDescriptor(TableName.valueOf("t2"));
+    table2.addFamily(new HColumnDescriptor("row"));
     final Configuration localConf = new Configuration(conf);
     localConf.set(WALFactory.WAL_PROVIDER, DefaultWALProvider.class.getName());
     final WALFactory wals = new WALFactory(localConf, null, currentTest.getMethodName());

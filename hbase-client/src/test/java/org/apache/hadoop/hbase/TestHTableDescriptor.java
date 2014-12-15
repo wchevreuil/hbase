@@ -252,23 +252,6 @@ public class TestHTableDescriptor {
   }
 
   @Test
-  public void testClassMethodsAreBuilderStyle() {
-    /* HTableDescriptor should have a builder style setup where setXXX/addXXX methods
-     * can be chainable together:
-     * . For example:
-     * HTableDescriptor htd
-     *   = new HTableDescriptor()
-     *     .setFoo(foo)
-     *     .setBar(bar)
-     *     .setBuz(buz)
-     *
-     * This test ensures that all methods starting with "set" returns the declaring object
-     */
-
-    BuilderStyleTest.assertClassesAreBuilderStyle(HTableDescriptor.class);
-  }
-
-  @Test
   public void testModifyFamily() {
     HTableDescriptor htd = new HTableDescriptor(TableName.valueOf("table"));
     byte[] familyName = Bytes.toBytes("cf");

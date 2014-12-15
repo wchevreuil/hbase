@@ -38,9 +38,9 @@ public abstract class OperationWithAttributes extends Operation implements Attri
   public static final String ID_ATRIBUTE = "_operation.attributes.id";
 
   @Override
-  public OperationWithAttributes setAttribute(String name, byte[] value) {
+  public void setAttribute(String name, byte[] value) {
     if (attributes == null && value == null) {
-      return this;
+      return;
     }
 
     if (attributes == null) {
@@ -55,7 +55,6 @@ public abstract class OperationWithAttributes extends Operation implements Attri
     } else {
       attributes.put(name, value);
     }
-    return this;
   }
 
   @Override
@@ -96,9 +95,8 @@ public abstract class OperationWithAttributes extends Operation implements Attri
    * @param id
    *          id to set for the scan
    */
-  public OperationWithAttributes setId(String id) {
+  public void setId(String id) {
     setAttribute(ID_ATRIBUTE, Bytes.toBytes(id));
-    return this;
   }
 
   /**

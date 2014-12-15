@@ -67,10 +67,9 @@ public abstract class Query extends OperationWithAttributes {
    * Sets the authorizations to be used by this Query
    * @param authorizations
    */
-  public Query setAuthorizations(Authorizations authorizations) {
+  public void setAuthorizations(Authorizations authorizations) {
     this.setAttribute(VisibilityConstants.VISIBILITY_LABELS_ATTR_KEY, ProtobufUtil
         .toAuthorizations(authorizations).toByteArray());
-    return this;
   }
 
   /**
@@ -94,23 +93,21 @@ public abstract class Query extends OperationWithAttributes {
    * @param user User short name
    * @param perms Permissions for the user
    */
-  public Query setACL(String user, Permission perms) {
+  public void setACL(String user, Permission perms) {
     setAttribute(AccessControlConstants.OP_ATTRIBUTE_ACL,
       ProtobufUtil.toUsersAndPermissions(user, perms).toByteArray());
-    return this;
   }
 
   /**
    * @param perms A map of permissions for a user or users
    */
-  public Query setACL(Map<String, Permission> perms) {
+  public void setACL(Map<String, Permission> perms) {
     ListMultimap<String, Permission> permMap = ArrayListMultimap.create();
     for (Map.Entry<String, Permission> entry : perms.entrySet()) {
       permMap.put(entry.getKey(), entry.getValue());
     }
     setAttribute(AccessControlConstants.OP_ATTRIBUTE_ACL,
       ProtobufUtil.toUsersAndPermissions(permMap).toByteArray());
-    return this;
   }
 
   /**

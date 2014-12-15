@@ -54,9 +54,8 @@ public class Append extends Mutation {
    *          A client that is not interested in the result can save network
    *          bandwidth setting this to false.
    */
-  public Append setReturnResults(boolean returnResults) {
+  public void setReturnResults(boolean returnResults) {
     setAttribute(RETURN_RESULTS, Bytes.toBytes(returnResults));
-    return this;
   }
 
   /**
@@ -130,62 +129,5 @@ public class Append extends Mutation {
     list.add(cell);
     this.familyMap.put(family, list);
     return this;
-  }
-
-  @Override
-  public Append setAttribute(String name, byte[] value) {
-    return (Append) super.setAttribute(name, value);
-  }
-
-  @Override
-  public Append setId(String id) {
-    return (Append) super.setId(id);
-  }
-
-  @Override
-  @Deprecated
-  public Append setWriteToWAL(boolean write) {
-    return (Append) super.setWriteToWAL(write);
-  }
-
-  @Override
-  public Append setDurability(Durability d) {
-    return (Append) super.setDurability(d);
-  }
-
-  @Override
-  public Append setFamilyCellMap(NavigableMap<byte[], List<Cell>> map) {
-    return (Append) super.setFamilyCellMap(map);
-  }
-
-  @Override
-  @Deprecated
-  public Append setFamilyMap(NavigableMap<byte[], List<KeyValue>> map) {
-    return (Append) super.setFamilyMap(map);
-  }
-
-  @Override
-  public Append setClusterIds(List<UUID> clusterIds) {
-    return (Append) super.setClusterIds(clusterIds);
-  }
-
-  @Override
-  public Append setCellVisibility(CellVisibility expression) {
-    return (Append) super.setCellVisibility(expression);
-  }
-
-  @Override
-  public Append setACL(String user, Permission perms) {
-    return (Append) super.setACL(user, perms);
-  }
-
-  @Override
-  public Append setACL(Map<String, Permission> perms) {
-    return (Append) super.setACL(perms);
-  }
-
-  @Override
-  public Append setTTL(long ttl) {
-    return (Append) super.setTTL(ttl);
   }
 }

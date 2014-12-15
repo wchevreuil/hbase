@@ -469,32 +469,29 @@ public class Scan extends Query {
    * Set the maximum number of values to return for each call to next()
    * @param batch the maximum number of values
    */
-  public Scan setBatch(int batch) {
+  public void setBatch(int batch) {
     if (this.hasFilter() && this.filter.hasFilterRow()) {
       throw new IncompatibleFilterException(
         "Cannot set batch on a scan using a filter" +
         " that returns true for filter.hasFilterRow");
     }
     this.batch = batch;
-    return this;
   }
 
   /**
    * Set the maximum number of values to return per row per Column Family
    * @param limit the maximum number of values returned / row / CF
    */
-  public Scan setMaxResultsPerColumnFamily(int limit) {
+  public void setMaxResultsPerColumnFamily(int limit) {
     this.storeLimit = limit;
-    return this;
   }
 
   /**
    * Set offset for the row per Column Family.
    * @param offset is the number of kvs that will be skipped.
    */
-  public Scan setRowOffsetPerColumnFamily(int offset) {
+  public void setRowOffsetPerColumnFamily(int offset) {
     this.storeOffset = offset;
-    return this;
   }
 
   /**
@@ -504,9 +501,8 @@ public class Scan extends Query {
    * Higher caching values will enable faster scanners but will use more memory.
    * @param caching the number of rows for caching
    */
-  public Scan setCaching(int caching) {
+  public void setCaching(int caching) {
     this.caching = caching;
-    return this;
   }
 
   /**
@@ -523,9 +519,8 @@ public class Scan extends Query {
    *
    * @param maxResultSize The maximum result size in bytes.
    */
-  public Scan setMaxResultSize(long maxResultSize) {
+  public void setMaxResultSize(long maxResultSize) {
     this.maxResultSize = maxResultSize;
-    return this;
   }
 
   @Override
@@ -662,9 +657,8 @@ public class Scan extends Query {
    * @param cacheBlocks if false, default settings are overridden and blocks
    * will not be cached
    */
-  public Scan setCacheBlocks(boolean cacheBlocks) {
+  public void setCacheBlocks(boolean cacheBlocks) {
     this.cacheBlocks = cacheBlocks;
-    return this;
   }
 
   /**
@@ -734,9 +728,8 @@ public class Scan extends Query {
    * - if there's a concurrent split and you have more than 2 column families, some rows may be
    *   missing some column families.
    */
-  public Scan setLoadColumnFamiliesOnDemand(boolean value) {
+  public void setLoadColumnFamiliesOnDemand(boolean value) {
     this.loadColumnFamiliesOnDemand = value;
-    return this;
   }
 
   /**
@@ -849,9 +842,8 @@ public class Scan extends Query {
    * It is an error to specify any column when "raw" is set.
    * @param raw True/False to enable/disable "raw" mode.
    */
-  public Scan setRaw(boolean raw) {
+  public void setRaw(boolean raw) {
     setAttribute(RAW_ATTR, Bytes.toBytes(raw));
-    return this;
   }
 
   /**
@@ -884,9 +876,8 @@ public class Scan extends Query {
    *
    * @param small
    */
-  public Scan setSmall(boolean small) {
+  public void setSmall(boolean small) {
     this.small = small;
-    return this;
   }
 
   /**
@@ -895,46 +886,6 @@ public class Scan extends Query {
    */
   public boolean isSmall() {
     return small;
-  }
-
-  @Override
-  public Scan setAttribute(String name, byte[] value) {
-    return (Scan) super.setAttribute(name, value);
-  }
-
-  @Override
-  public Scan setId(String id) {
-    return (Scan) super.setId(id);
-  }
-
-  @Override
-  public Scan setAuthorizations(Authorizations authorizations) {
-    return (Scan) super.setAuthorizations(authorizations);
-  }
-
-  @Override
-  public Scan setACL(Map<String, Permission> perms) {
-    return (Scan) super.setACL(perms);
-  }
-
-  @Override
-  public Scan setACL(String user, Permission perms) {
-    return (Scan) super.setACL(user, perms);
-  }
-
-  @Override
-  public Scan setConsistency(Consistency consistency) {
-    return (Scan) super.setConsistency(consistency);
-  }
-
-  @Override
-  public Scan setReplicaId(int Id) {
-    return (Scan) super.setReplicaId(Id);
-  }
-
-  @Override
-  public Scan setIsolationLevel(IsolationLevel level) {
-    return (Scan) super.setIsolationLevel(level);
   }
 
   /**

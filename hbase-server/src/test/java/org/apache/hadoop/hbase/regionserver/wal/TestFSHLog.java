@@ -250,10 +250,10 @@ public class TestFSHLog {
     conf1.setInt("hbase.regionserver.maxlogs", 1);
     FSHLog wal = new FSHLog(fs, FSUtils.getRootDir(conf1), dir.toString(),
         HConstants.HREGION_OLDLOGDIR_NAME, conf1, null, true, null, null);
-    HTableDescriptor t1 =
-        new HTableDescriptor(TableName.valueOf("t1")).addFamily(new HColumnDescriptor("row"));
-    HTableDescriptor t2 =
-        new HTableDescriptor(TableName.valueOf("t2")).addFamily(new HColumnDescriptor("row"));
+    HTableDescriptor t1 = new HTableDescriptor(TableName.valueOf("t1"));
+    t1.addFamily(new HColumnDescriptor("row"));
+    HTableDescriptor t2 = new HTableDescriptor(TableName.valueOf("t2"));
+    t2.addFamily(new HColumnDescriptor("row"));
     HRegionInfo hri1 =
         new HRegionInfo(t1.getTableName(), HConstants.EMPTY_START_ROW, HConstants.EMPTY_END_ROW);
     HRegionInfo hri2 =
@@ -436,8 +436,8 @@ public class TestFSHLog {
           FSHLog.RingBufferEventHandler.class.getDeclaredField("syncRunnerIndex");
       syncRunnerIndexField.setAccessible(true);
       syncRunnerIndexField.set(ringBufferEventHandler, Integer.MAX_VALUE - 1);
-      HTableDescriptor htd =
-          new HTableDescriptor(TableName.valueOf("t1")).addFamily(new HColumnDescriptor("row"));
+      HTableDescriptor htd = new HTableDescriptor(TableName.valueOf("t1"));
+      htd.addFamily(new HColumnDescriptor("row"));
       HRegionInfo hri =
           new HRegionInfo(htd.getTableName(), HConstants.EMPTY_START_ROW, HConstants.EMPTY_END_ROW);
       MultiVersionConcurrencyControl mvcc = new MultiVersionConcurrencyControl();

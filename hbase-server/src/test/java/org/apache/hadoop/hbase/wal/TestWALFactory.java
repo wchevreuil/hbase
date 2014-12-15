@@ -478,9 +478,8 @@ public class TestWALFactory {
   @Test
   public void testEditAdd() throws IOException {
     final int COL_COUNT = 10;
-    final HTableDescriptor htd =
-        new HTableDescriptor(TableName.valueOf("tablename")).addFamily(new HColumnDescriptor(
-            "column"));
+    final HTableDescriptor htd = new HTableDescriptor(TableName.valueOf("tablename"));
+    htd.addFamily(new HColumnDescriptor("column"));
     final byte [] row = Bytes.toBytes("row");
     WAL.Reader reader = null;
     try {
@@ -537,9 +536,8 @@ public class TestWALFactory {
   @Test
   public void testAppend() throws IOException {
     final int COL_COUNT = 10;
-    final HTableDescriptor htd =
-        new HTableDescriptor(TableName.valueOf("tablename")).addFamily(new HColumnDescriptor(
-            "column"));
+    final HTableDescriptor htd = new HTableDescriptor(TableName.valueOf("tablename"));
+    htd.addFamily(new HColumnDescriptor("column"));
     final byte [] row = Bytes.toBytes("row");
     WAL.Reader reader = null;
     final MultiVersionConcurrencyControl mvcc = new MultiVersionConcurrencyControl(1);

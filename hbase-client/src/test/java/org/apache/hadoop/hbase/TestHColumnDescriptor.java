@@ -96,21 +96,4 @@ public class TestHColumnDescriptor {
     desc.removeConfiguration(key);
     assertEquals(null, desc.getConfigurationValue(key));
   }
-
-  @Test
-  public void testClassMethodsAreBuilderStyle() {
-    /* HColumnDescriptor should have a builder style setup where setXXX/addXXX methods
-     * can be chainable together:
-     * . For example:
-     * HColumnDescriptor hcd
-     *   = new HColumnDescriptor()
-     *     .setFoo(foo)
-     *     .setBar(bar)
-     *     .setBuz(buz)
-     *
-     * This test ensures that all methods starting with "set" returns the declaring object
-     */
-
-    BuilderStyleTest.assertClassesAreBuilderStyle(HColumnDescriptor.class);
-  }
 }
