@@ -281,5 +281,15 @@ public interface MetricsRegionServerWrapper {
   /**
    * @return Count of requests blocked because the memstore size is larger than blockingMemStoreSize
    */
-  long getBlockedRequestsCount();
+  public long getBlockedRequestsCount();
+
+  /**
+   * @return Count of hedged read operations
+   */
+  public long getHedgedReadOps();
+
+  /**
+   * @return Count of times a hedged read beat out the primary read.
+   */
+  public long getHedgedReadWins();
 }

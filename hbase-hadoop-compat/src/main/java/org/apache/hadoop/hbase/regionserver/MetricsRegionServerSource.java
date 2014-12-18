@@ -289,4 +289,10 @@ public interface MetricsRegionServerSource extends BaseSource {
   String SPLIT_SUCCESS_KEY = "splitSuccessCount";
   String SPLIT_SUCCESS_DESC = "Number of successfully executed splits";
   String FLUSH_KEY = "flushTime";
+
+  String HEDGED_READS = "hedgedReads";
+  String HEDGED_READS_DESC = "The number of times we started a hedged read";
+  String HEDGED_READ_WINS = "hedgedReadWins";
+  String HEDGED_READ_WINS_DESC =
+      "The number of times we started a hedged read and a hedged read won";
 }
