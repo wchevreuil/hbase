@@ -143,10 +143,10 @@ public final class HConstants {
   public static final String MASTER_PORT = "hbase.master.port";
 
   /** default port that the master listens on */
-  public static final int DEFAULT_MASTER_PORT = 16000;
+  public static final int DEFAULT_MASTER_PORT = 60000;
 
   /** default port for master web api */
-  public static final int DEFAULT_MASTER_INFOPORT = 16010;
+  public static final int DEFAULT_MASTER_INFOPORT = 60010;
 
   /** Configuration key for master web API port */
   public static final String MASTER_INFO_PORT = "hbase.master.info.port";
@@ -225,10 +225,10 @@ public final class HConstants {
   public static final String REGIONSERVER_PORT = "hbase.regionserver.port";
 
   /** Default port region server listens on. */
-  public static final int DEFAULT_REGIONSERVER_PORT = 16020;
+  public static final int DEFAULT_REGIONSERVER_PORT = 60020;
 
   /** default port for region server web api */
-  public static final int DEFAULT_REGIONSERVER_INFOPORT = 16030;
+  public static final int DEFAULT_REGIONSERVER_INFOPORT = 60030;
 
   /** A configuration key for regionserver info port */
   public static final String REGIONSERVER_INFO_PORT =
@@ -1074,7 +1074,7 @@ public final class HConstants {
    * The port to use for the multicast messages.
    */
   public static final String STATUS_MULTICAST_PORT = "hbase.status.multicast.address.port";
-  public static final int DEFAULT_STATUS_MULTICAST_PORT = 16100;
+  public static final int DEFAULT_STATUS_MULTICAST_PORT = 60100;
 
   public static final long NO_NONCE = 0;
 
