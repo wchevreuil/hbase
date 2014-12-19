@@ -231,7 +231,8 @@ public class WALInputFormat extends InputFormat<WALKey, WALEdit> {
   List<InputSplit> getSplits(final JobContext context, final String startKey, final String endKey)
       throws IOException, InterruptedException {
     Configuration conf = context.getConfiguration();
-    Path inputDir = new Path(conf.get("mapreduce.input.fileinputformat.inputdir"));
+    Path inputDir = new Path(conf.get("mapreduce.input.fileinputformat.inputdir",
+      conf.get("mapred.input.dir")));
 
     long startTime = conf.getLong(startKey, Long.MIN_VALUE);
     long endTime = conf.getLong(endKey, Long.MAX_VALUE);

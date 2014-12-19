@@ -649,10 +649,15 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
     Path root = getDataTestDirOnTestFS("hadoop");
     conf.set(MapreduceTestingShim.getMROutputDirProp(),
       new Path(root, "mapred-output-dir").toString());
+    conf.set("mapred.system.dir", new Path(root, "mapred-system-dir").toString());
     conf.set("mapreduce.jobtracker.system.dir", new Path(root, "mapred-system-dir").toString());
     conf.set("mapreduce.jobtracker.staging.root.dir",
       new Path(root, "mapreduce-jobtracker-staging-root-dir").toString());
+    conf.set("mapred.working.dir", new Path(root, "mapred-working-dir").toString());
     conf.set("mapreduce.job.working.dir", new Path(root, "mapred-working-dir").toString());
+
+    conf.set("hadoop.job.history.user.location", new Path(root, "mapred-logs-dir").toString());
+    conf.set("mapreduce.job.userhistorylocation", new Path(root, "mapred-logs-dir").toString());
   }
 
 
@@ -2650,14 +2655,23 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       jobConf = mrCluster.createJobConf();
     }
 
+    jobConf.set("mapred.local.dir",
+      conf.get("mapreduce.cluster.local.dir",
+        conf.get("mapred.local.dir"))); //Hadoop MiniMR overwrites this while it should not
     jobConf.set("mapreduce.cluster.local.dir",
-      conf.get("mapreduce.cluster.local.dir")); //Hadoop MiniMR overwrites this while it should not
+      conf.get("mapreduce.cluster.local.dir",
+        conf.get("mapred.local.dir"))); //Hadoop MiniMR overwrites this while it should not
     LOG.info("Mini mapreduce cluster started");
 
     // In hadoop2, YARN/MR2 starts a mini cluster with its own conf instance and updates settings.
     // Our HBase MR jobs need several of these settings in order to properly run.  So we copy the
     // necessary config properties here.  YARN-129 required adding a few properties.
-    conf.set("mapreduce.jobtracker.address", jobConf.get("mapreduce.jobtracker.address"));
+    conf.set("mapred.job.tracker",
+        jobConf.get("mapreduce.jobtracker.address",
+          jobConf.get("mapred.job.tracker")));
+    conf.set("mapreduce.jobtracker.address",
+        jobConf.get("mapreduce.jobtracker.address",
+          jobConf.get("mapred.job.tracker")));
     // this for mrv2 support; mr1 ignores this
     conf.set("mapreduce.framework.name", "yarn");
     conf.setBoolean("yarn.is.minicluster", true);
@@ -2687,6 +2701,7 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       LOG.info("Mini mapreduce cluster stopped");
     }
     // Restore configuration to point to local jobtracker
+    conf.set("mapred.job.tracker", "local");
     conf.set("mapreduce.jobtracker.address", "local");
   }
 
