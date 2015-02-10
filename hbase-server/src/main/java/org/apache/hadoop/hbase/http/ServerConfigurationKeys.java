@@ -30,6 +30,7 @@ public interface ServerConfigurationKeys {
 
   /** Enable/Disable ssl for http server */
   public static final String HBASE_SSL_ENABLED_KEY = "hbase.ssl.enabled";
+  public static final String HBASE_SSL_ENABLED_OLD_KEY = "hadoop.ssl.enabled";
 
   public static final boolean HBASE_SSL_ENABLED_DEFAULT = false;
 

@@ -52,9 +52,9 @@ public class HttpConfig {
   }
 
    public HttpConfig(final Configuration conf) {
-    boolean sslEnabled = conf.getBoolean(
-      ServerConfigurationKeys.HBASE_SSL_ENABLED_KEY,
-      ServerConfigurationKeys.HBASE_SSL_ENABLED_DEFAULT);
+    boolean sslEnabled = conf.getBoolean(ServerConfigurationKeys.HBASE_SSL_ENABLED_KEY,
+      conf.getBoolean(ServerConfigurationKeys.HBASE_SSL_ENABLED_OLD_KEY,
+      ServerConfigurationKeys.HBASE_SSL_ENABLED_DEFAULT));
     policy = sslEnabled ? Policy.HTTPS_ONLY : Policy.HTTP_ONLY;
     if (sslEnabled) {
       conf.addResource("ssl-server.xml");

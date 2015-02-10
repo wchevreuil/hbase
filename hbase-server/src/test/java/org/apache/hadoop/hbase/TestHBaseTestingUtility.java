@@ -167,6 +167,31 @@ public class TestHBaseTestingUtility {
     }
   }
 
+  @Test
+  public void testMiniClusterWithSSLOnWithOldPropery() throws Exception {
+    final String BASEDIR = System.getProperty("test.build.dir",
+        "target/test-dir") + "/" + TestHBaseTestingUtility.class.getSimpleName();
+    String sslConfDir = KeyStoreTestUtil.getClasspathDir(TestHBaseTestingUtility.class);
+    String keystoresDir = new File(BASEDIR).getAbsolutePath();
+
+    HBaseTestingUtility hbt = new HBaseTestingUtility();
+    File base = new File(BASEDIR);
+    FileUtil.fullyDelete(base);
+    base.mkdirs();
+
+    KeyStoreTestUtil.setupSSLConfig(keystoresDir, sslConfDir, hbt.getConfiguration(), false);
+
+    hbt.getConfiguration().set("hadoop.ssl.enabled", "true");
+    hbt.getConfiguration().addResource("ssl-server.xml");
+    hbt.getConfiguration().addResource("ssl-client.xml");
+
+    MiniHBaseCluster cluster = hbt.startMiniCluster();
+    try {
+      assertEquals(1, cluster.getLiveRegionServerThreads().size());
+    } finally {
+      hbt.shutdownMiniCluster();
+    }
+  }
   /**
    *  Test that we can start and stop multiple time a cluster
    *   with the same HBaseTestingUtility.
