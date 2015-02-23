@@ -154,9 +154,13 @@ abstract public class MapreduceTestingShim {
         // CDH5, we are building against MR1 by default. These two APIs are exactly the
         // same in MR2 and hadoop2, but different in MR1. For eg, mapred.job.tracker was not being
         // set properly in MR1 with the new API. The fix is to revert to the old way of getting the
-        // conf.
-        Method meth = MiniMRCluster.class.getMethod("createJobConf", emptyParam);
-        return (JobConf) meth.invoke(cluster, new Object []{});
+        // conf. To ensure we get the original configuration values from HBaseTestingUtil, e.g. the
+        // zk quorum, we have to first use the newer getJobTrackerConf and pass the returned value
+        // as a basis for creating our own jobconf.
+        Method meth = MiniMRCluster.class.getMethod("getJobTrackerConf", emptyParam);
+        final JobConf conf = (JobConf) meth.invoke(cluster, new Object []{});
+        meth = MiniMRCluster.class.getMethod("createJobConf", JobConf.class);
+        return (JobConf) meth.invoke(cluster, conf);
       } catch (NoSuchMethodException nsme) {
         return null;
       } catch (InvocationTargetException ite) {
