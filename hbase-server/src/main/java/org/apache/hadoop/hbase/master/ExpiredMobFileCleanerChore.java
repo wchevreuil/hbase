@@ -52,6 +52,7 @@ public class ExpiredMobFileCleanerChore extends Chore {
     this.master = master;
     this.tableLockManager = master.getTableLockManager();
     cleaner = new ExpiredMobFileCleaner();
+    cleaner.setConf(master.getConfiguration());
   }
 
   @Override
