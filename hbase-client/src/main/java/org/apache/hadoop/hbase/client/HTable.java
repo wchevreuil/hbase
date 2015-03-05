@@ -289,6 +289,71 @@ public class HTable implements HTableInterface, RegionLocator {
   }
 
   /**
+   * Creates an object to access a HBase table. Shares zookeeper connection and other resources with
+   * other HTable instances created with the same <code>connection</code> instance. Use this
+   * constructor when the HConnection instance is externally managed.
+   * @param tableName Name of the table.
+   * @param connection HConnection to be used.
+   * @throws IOException if a remote or network exception occurs
+   * @deprecated Use {@link #HTable(TableName, Connection) instead}
+   */
+  @Deprecated
+  public HTable(TableName tableName, HConnection connection) throws IOException {
+    this.tableName = tableName;
+    this.cleanupPoolOnClose = true;
+    this.cleanupConnectionOnClose = false;
+    this.connection = (ClusterConnection) connection;
+    this.configuration = connection.getConfiguration();
+    this.pool = getDefaultExecutor(this.configuration);
+    this.finishSetup();
+  }
+
+  /**
+   * Creates an object to access a HBase table.
+   * Shares zookeeper connection and other resources with other HTable instances
+   * created with the same <code>connection</code> instance.
+   * Use this constructor when the ExecutorService and HConnection instance are
+   * externally managed.
+   * @param tableName Name of the table.
+   * @param connection HConnection to be used.
+   * @param pool ExecutorService to be used.
+   * @throws IOException if a remote or network exception occurs
+   * @deprecated Use {@link #HTable(byte[], Connection, ExecutorService) instead}
+   */
+  @Deprecated
+  public HTable(final byte[] tableName, final HConnection connection,
+                final ExecutorService pool) throws IOException {
+    this(TableName.valueOf(tableName), connection, pool);
+  }
+
+  /**
+   * Creates an object to access a HBase table.
+   * Shares zookeeper connection and other resources with other HTable instances
+   * created with the same <code>connection</code> instance.
+   * Use this constructor when the ExecutorService and HConnection instance are
+   * externally managed.
+   * @param tableName Name of the table.
+   * @param connection HConnection to be used.
+   * @param pool ExecutorService to be used.
+   * @throws IOException if a remote or network exception occurs
+   * @deprecated Use {@link #HTable(TableName, Connection, ExecutorService) instead}
+   */
+  @Deprecated
+  public HTable(TableName tableName, final HConnection connection,
+                final ExecutorService pool) throws IOException {
+    if (connection == null || connection.isClosed()) {
+      throw new IllegalArgumentException("Connection is null or closed.");
+    }
+    this.tableName = tableName;
+    this.cleanupPoolOnClose = this.cleanupConnectionOnClose = false;
+    this.connection = (ClusterConnection) connection;
+    this.configuration = connection.getConfiguration();
+    this.pool = pool;
+
+    this.finishSetup();
+  }
+
+  /**
    * Creates an object to access a HBase table.
    * Used by HBase internally.  DO NOT USE. See {@link ConnectionFactory} class comment for how to
    * get a {@link Table} instance (use {@link Table} instead of {@link HTable}).

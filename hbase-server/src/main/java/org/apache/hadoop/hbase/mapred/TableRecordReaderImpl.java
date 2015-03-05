@@ -18,13 +18,16 @@
  */
 package org.apache.hadoop.hbase.mapred;
 
+import static org.apache.hadoop.hbase.mapreduce.TableRecordReaderImpl.LOG_PER_ROW_COUNT;
+
 import java.io.IOException;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
-import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
@@ -36,8 +39,6 @@ import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
 import org.apache.hadoop.hbase.mapreduce.TableInputFormat;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.util.StringUtils;
-
-import static org.apache.hadoop.hbase.mapreduce.TableRecordReaderImpl.LOG_PER_ROW_COUNT;
 
 /**
  * Iterate over an HBase table data, return (Text, RowResult) pairs
@@ -122,6 +123,15 @@ public class TableRecordReaderImpl {
       ScannerCallable.LOG_SCANNER_ACTIVITY, false);
     logPerRowCount = conf.getInt(LOG_PER_ROW_COUNT, 100);
     this.htable = htable;
+  }
+
+  /**
+   * @param htable the {@link org.apache.hadoop.hbase.HTableDescriptor} to scan.
+   * @deprecated Use {@link #setHTable(org.apache.hadoop.hbase.client.Table)} instead.
+   */
+  @Deprecated
+  public void setHTable(HTable htable) {
+    setHTable((Table)htable);
   }
 
   /**

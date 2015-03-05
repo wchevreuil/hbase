@@ -301,6 +301,32 @@ public class TableRecordReaderImpl {
   }
 
   /**
+   * @deprecated Use {@link #updateCounters(ScanMetrics, long, Method, TaskAttemptContext, long)}
+   * instead.
+   */
+  @Deprecated
+  protected static void updateCounters(ScanMetrics scanMetrics, long numScannerRestarts,
+                                       Method getCounter, TaskAttemptContext context) {
+    // we can get access to counters only if hbase uses new mapreduce APIs
+    if (getCounter == null) {
+      return;
+    }
+
+    try {
+      for (Map.Entry<String, Long> entry:scanMetrics.getMetricsMap().entrySet()) {
+        Counter ct = (Counter)getCounter.invoke(context,
+            HBASE_COUNTER_GROUP_NAME, entry.getKey());
+
+        ct.increment(entry.getValue());
+      }
+      ((Counter) getCounter.invoke(context, HBASE_COUNTER_GROUP_NAME,
+          "NUM_SCANNER_RESTARTS")).increment(numScannerRestarts);
+    } catch (Exception e) {
+      LOG.debug("can't update counter." + StringUtils.stringifyException(e));
+    }
+  }
+
+  /**
    * The current progress of the record reader through its data.
    *
    * @return A number between 0.0 and 1.0, the fraction of the data read.
