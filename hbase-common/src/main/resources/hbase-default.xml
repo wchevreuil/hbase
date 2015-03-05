@@ -1451,7 +1451,6 @@ possible configurations would overwhelm and obscure the important.
     <name>hbase.http.staticuser.user</name>
     <value>dr.stack</value>
   </property>
-
   <property>
     <name>hbase.master.normalizer.class</name>
     <value>org.apache.hadoop.hbase.master.normalizer.SimpleRegionNormalizer</value>
@@ -1483,7 +1482,6 @@ possible configurations would overwhelm and obscure the important.
        Timeout for regionservers to keep threads in snapshot request pool waiting
     </description>
   </property>
-
   <!-- Mob properties. -->
   <property>
     <name>hbase.mob.file.cache.size</name>
@@ -1577,7 +1575,7 @@ possible configurations would overwhelm and obscure the important.
     </description>
   </property>
   <property>
-    <name>hbase.master.mob.file.compaction.chore.period</name>
+    <name>hbase.mob.file.compaction.chore.period</name>
     <value>604800000</value>
     <description>
       The period that MobFileCompactionChore runs. The unit is millisecond.
@@ -1592,10 +1590,10 @@ possible configurations would overwhelm and obscure the important.
     </description>
   </property>
   <property>
-    <name>hbase.master.mob.file.compaction.chore.threads.max</name>
+    <name>hbase.mob.file.compaction.threads.max</name>
     <value>1</value>
     <description>
-      The max number of threads used in MobFileCompactionChore.
+      The max number of threads used in MobFileCompactor.
     </description>
   </property>
 </configuration>
