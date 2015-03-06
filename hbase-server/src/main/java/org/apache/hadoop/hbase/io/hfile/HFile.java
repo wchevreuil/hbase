@@ -318,7 +318,8 @@ public class HFile {
   public static final String FORMAT_VERSION_KEY = "hfile.format.version";
 
   public static int getFormatVersion(Configuration conf) {
-    int version = conf.getInt(FORMAT_VERSION_KEY, MAX_FORMAT_VERSION);
+    /** CLOUDERA-SPECIFIC: Force HFileV2 as the default HFile version */
+    int version = conf.getInt(FORMAT_VERSION_KEY, MIN_FORMAT_VERSION);
     checkFormatVersion(version);
     return version;
   }

@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.mapreduce;
 
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.codec.KeyValueCodecWithTags;
+import org.apache.hadoop.hbase.io.hfile.HFile;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.security.UserProvider;
 import org.apache.hadoop.hbase.security.access.AccessControlLists;
@@ -56,6 +57,8 @@ public class TestSecureLoadIncrementalHFiles extends  TestLoadIncrementalHFiles{
     // change default behavior so that tag values are returned with normal rpcs
     util.getConfiguration().set(HConstants.RPC_CODEC_CONF_KEY,
         KeyValueCodecWithTags.class.getCanonicalName());
+    // force hfile v3
+    util.getConfiguration().setInt(HFile.FORMAT_VERSION_KEY, 3);
 
     util.startMiniCluster();
 

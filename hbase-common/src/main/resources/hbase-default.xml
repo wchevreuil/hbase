@@ -779,11 +779,13 @@ possible configurations would overwhelm and obscure the important.
   </property>
   <property>
       <name>hfile.format.version</name>
-      <value>3</value>
+      <value>2</value>
       <description>The HFile format version to use for new files.
       Version 3 adds support for tags in hfiles (See http://hbase.apache.org/book.html#hbase.tags).
       Distributed Log Replay requires that tags are enabled. Also see the configuration
       'hbase.replication.rpc.codec'.
+      By default CDH5 uses HFileV2 for backward compatibility
+      purposes.
       </description>
   </property>
   <property>
