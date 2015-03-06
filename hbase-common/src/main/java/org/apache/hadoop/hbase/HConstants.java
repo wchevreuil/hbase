@@ -713,6 +713,27 @@ public final class HConstants {
   public static final int DEFAULT_HBASE_CLIENT_RETRIES_NUMBER = 31;
 
   /**
+   * Parameter name for client region location prefetch toggle.
+   */
+  public static String HBASE_CLIENT_PREFETCH = "hbase.client.prefetch";
+
+  /**
+   * Default value of {@link #HBASE_CLIENT_PREFETCH}.
+   */
+  public static boolean DEFAULT_HBASE_CLIENT_PREFETCH = true;
+
+  /**
+   * Parameter name for client prefetch limit, used as the maximum number of regions
+   * info that will be prefetched.
+   */
+  public static String HBASE_CLIENT_PREFETCH_LIMIT = "hbase.client.prefetch.limit";
+
+  /**
+   * Default value of {@link #HBASE_CLIENT_PREFETCH_LIMIT}.
+   */
+  public static int DEFAULT_HBASE_CLIENT_PREFETCH_LIMIT = 10;
+
+  /**
    * Parameter name to set the default scanner caching for all clients.
    */
   public static final String HBASE_CLIENT_SCANNER_CACHING = "hbase.client.scanner.caching";
