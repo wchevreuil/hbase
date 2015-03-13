@@ -186,6 +186,9 @@ public class TestRegionReplicas {
       region.flush(true);
 
       openRegion(HTU, getRS(), hriSecondary);
+      // evict connection cache  since we have manually deployed hriSecondary after HTU.countRows()
+      Thread.sleep(5000);
+      table.clearRegionCache();
 
       // try directly Get against region replica
       byte[] row = Bytes.toBytes(String.valueOf(42));
