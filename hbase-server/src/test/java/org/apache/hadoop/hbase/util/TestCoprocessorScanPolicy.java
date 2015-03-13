@@ -251,7 +251,7 @@ public class TestCoprocessorScanPolicy {
       ScanInfo scanInfo = new ScanInfo(TEST_UTIL.getConfiguration(),
           family.getName(), family.getMinVersions(),
           newVersions == null ? family.getMaxVersions() : newVersions,
-          newTtl == null ? oldSI.getTtl() : newTtl, family.getKeepDeletedCells(),
+          newTtl == null ? oldSI.getTtl() : newTtl, family.getKeepDeletedCellsAsEnum(),
           oldSI.getTimeToPurgeDeletes(), oldSI.getComparator());
       Scan scan = new Scan();
       scan.setMaxVersions(newVersions == null ? oldSI.getMaxVersions() : newVersions);
@@ -272,7 +272,7 @@ public class TestCoprocessorScanPolicy {
       ScanInfo scanInfo = new ScanInfo(TEST_UTIL.getConfiguration(),
           family.getName(), family.getMinVersions(),
           newVersions == null ? family.getMaxVersions() : newVersions,
-          newTtl == null ? oldSI.getTtl() : newTtl, family.getKeepDeletedCells(),
+          newTtl == null ? oldSI.getTtl() : newTtl, family.getKeepDeletedCellsAsEnum(),
           oldSI.getTimeToPurgeDeletes(), oldSI.getComparator());
       Scan scan = new Scan();
       scan.setMaxVersions(newVersions == null ? oldSI.getMaxVersions() : newVersions);
@@ -293,7 +293,7 @@ public class TestCoprocessorScanPolicy {
         ScanInfo scanInfo = new ScanInfo(TEST_UTIL.getConfiguration(),
             family.getName(), family.getMinVersions(),
             newVersions == null ? family.getMaxVersions() : newVersions,
-            newTtl == null ? oldSI.getTtl() : newTtl, family.getKeepDeletedCells(),
+            newTtl == null ? oldSI.getTtl() : newTtl, family.getKeepDeletedCellsAsEnum(),
             oldSI.getTimeToPurgeDeletes(), oldSI.getComparator());
         return new StoreScanner(store, scanInfo, scan, targetCols,
             ((HStore) store).getHRegion().getReadpoint(IsolationLevel.READ_COMMITTED));

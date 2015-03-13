@@ -64,7 +64,7 @@ public class ScanInfo {
   public ScanInfo(final Configuration conf, final HColumnDescriptor family, final long ttl,
       final long timeToPurgeDeletes, final KVComparator comparator) {
     this(conf, family.getName(), family.getMinVersions(), family.getMaxVersions(), ttl, family
-        .getKeepDeletedCells(), timeToPurgeDeletes, comparator);
+        .getKeepDeletedCellsAsEnum(), timeToPurgeDeletes, comparator);
   }
 
   /**

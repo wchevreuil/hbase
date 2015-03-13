@@ -63,7 +63,7 @@ public class TestHColumnDescriptor {
     assertEquals(hcd.getValue("a"), deserializedHcd.getValue("a"));
     assertEquals(hcd.getMaxVersions(), deserializedHcd.getMaxVersions());
     assertEquals(hcd.getMinVersions(), deserializedHcd.getMinVersions());
-    assertEquals(hcd.getKeepDeletedCells(), deserializedHcd.getKeepDeletedCells());
+    assertEquals(hcd.getKeepDeletedCellsAsEnum(), deserializedHcd.getKeepDeletedCellsAsEnum());
     assertEquals(inmemory, deserializedHcd.isInMemory());
     assertEquals(hcd.getScope(), deserializedHcd.getScope());
     assertTrue(deserializedHcd.getCompressionType().equals(Compression.Algorithm.SNAPPY));

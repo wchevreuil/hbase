@@ -487,6 +487,48 @@ public class HColumnDescriptor implements WritableComparable<HColumnDescriptor> 
   }
 
   /**
+   * Constructor
+   * @param familyName Column family name. Must be 'printable' -- digit or
+   * letter -- and may not contain a <code>:<code>
+   * @param minVersions Minimum number of versions to keep
+   * @param maxVersions Maximum number of versions to keep
+   * @param keepDeletedCells Whether to retain deleted cells until they expire
+   *        up to maxVersions versions.
+   * @param compression Compression type
+   * @param encodeOnDisk whether to use the specified data block encoding
+   *        on disk. If false, the encoding will be used in cache only.
+   * @param dataBlockEncoding data block encoding
+   * @param inMemory If true, column data should be kept in an HRegionServer's
+   * cache
+   * @param blockCacheEnabled If true, MapFile blocks should be cached
+   * @param blocksize Block size to use when writing out storefiles.  Use
+   * smaller blocksizes for faster random-access at expense of larger indices
+   * (more memory consumption).  Default is usually 64k.
+   * @param timeToLive Time-to-live of cell contents, in seconds
+   * (use HConstants.FOREVER for unlimited TTL)
+   * @param bloomFilter Bloom filter type for this column
+   * @param scope The scope tag for this column
+   *
+   * @throws IllegalArgumentException if passed a family name that is made of
+   * other than 'word' characters: i.e. <code>[a-zA-Z_0-9]</code> or contains
+   * a <code>:</code>
+   * @throws IllegalArgumentException if the number of versions is &lt;= 0
+   * @deprecated use {@link #HColumnDescriptor(String)} and setters
+   */
+  @Deprecated
+  public HColumnDescriptor(final byte[] familyName, final int minVersions,
+      final int maxVersions, final boolean keepDeletedCells,
+      final String compression, final boolean encodeOnDisk,
+      final String dataBlockEncoding, final boolean inMemory,
+      final boolean blockCacheEnabled, final int blocksize,
+      final int timeToLive, final String bloomFilter, final int scope) {
+    this(familyName, minVersions, maxVersions,
+        keepDeletedCells ? KeepDeletedCells.TRUE : KeepDeletedCells.FALSE,
+        compression, encodeOnDisk, dataBlockEncoding,
+        inMemory, blockCacheEnabled, blocksize, timeToLive, bloomFilter, scope);
+  }
+
+  /**
    * @param b Family name.
    * @return <code>b</code>
    * @throws IllegalArgumentException If not null and not a legitimate family
@@ -843,13 +885,42 @@ public class HColumnDescriptor implements WritableComparable<HColumnDescriptor> 
     return setValue(HConstants.IN_MEMORY, Boolean.toString(inMemory));
   }
 
-  public KeepDeletedCells getKeepDeletedCells() {
+  /**
+   * This method is equivalent of getKeepDeletedCells() in HBase 1.0.
+   * The same name couldn't be used as it would break compatibility with
+   * earlier CDH5.x versions.
+   */
+  public KeepDeletedCells getKeepDeletedCellsAsEnum() {
     String value = getValue(KEEP_DELETED_CELLS);
     if (value != null) {
       // toUpperCase for backwards compatibility
       return KeepDeletedCells.valueOf(value.toUpperCase());
     }
     return DEFAULT_KEEP_DELETED;
+  }
+
+  /**
+   * If the KeepDeletedCells enum is being used with HColumnDescriptor,
+   * the value returned in case of TTL will be a mere placeholder and the
+   * KeepDeletedCells enum will be used for internal purposes.
+   * @deprecated use {@link #getKeepDeletedCellsAsEnum()} instead.
+   */
+  @Deprecated
+  public boolean getKeepDeletedCells() {
+    String value = getValue(KEEP_DELETED_CELLS);
+    if (value != null) {
+      KeepDeletedCells kdc = KeepDeletedCells.valueOf(value);
+      switch (kdc) {
+        case TRUE:
+        case TTL:
+          return true;
+        case FALSE:
+          return false;
+        default:
+          throw new IllegalStateException("The value " + kdc + " is not a valid code");
+      }
+    }
+    return Boolean.valueOf(DEFAULT_KEEP_DELETED.toString());
   }
 
   /**
