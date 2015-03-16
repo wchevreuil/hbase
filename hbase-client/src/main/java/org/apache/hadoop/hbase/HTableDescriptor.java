@@ -672,30 +672,22 @@ public class HTableDescriptor implements WritableComparable<HTableDescriptor> {
   }
 
   /**
-   * Check if async log edits are enabled on the table.
-   *
-   * @return true if that async log flush is enabled on the table
-   * @deprecated Since 0.96 we no longer have an explicity deferred log flush/sync functionality.
-   * Use {@link #getDurability()}.
+   * This method is no longer being used in CDH5.4. Please see HBASE-10471 for more details.
+   * Retaining this so as not to break compatability with earlier CDH5.x versions.
+   * @deprecated
    */
-  public synchronized boolean isAsyncLogFlush() {
+  @Deprecated
+  public synchronized boolean isDeferredLogFlush() {
     return getDurability() == Durability.ASYNC_WAL;
   }
 
   /**
-   * This is used to allowing the log edits syncing to the file system. Everytime
-   * an edit is sent to the server it is first sync'd to the file system by the
-   * log writer. This sync is an expensive operation and thus can be deferred so
-   * that the edits are kept in memory until the background async writer-sync-notifier
-   * threads do the sync and not explicitly flushed for every edit.
-   * <p>
-   * NOTE:- This option might result in data loss if the region server crashes
-   * before these pending edits in memory are flushed onto the filesystem.
-   * </p>
-   *
-   * @param isAsyncLogFlush
+   * This method is no longer being used in CDH5.4. Please see HBASE-10471 for more details.
+   * Retaining this so as not to break compatability with earlier CDH5.x versions.
+   * @deprecated
    */
-  public synchronized void setAsyncLogFlush(final boolean isAsyncLogFlush) {
+  @Deprecated
+  public synchronized void setDeferredLogFlush(final boolean isAsyncLogFlush) {
     this.setDurability(isAsyncLogFlush ? Durability.ASYNC_WAL : DEFAULT_DURABLITY);
   }
 

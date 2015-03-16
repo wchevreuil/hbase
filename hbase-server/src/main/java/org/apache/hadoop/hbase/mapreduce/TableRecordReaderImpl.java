@@ -26,6 +26,7 @@ import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hbase.client.HTable;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.ResultScanner;
 import org.apache.hadoop.hbase.client.Scan;
@@ -124,6 +125,21 @@ public class TableRecordReaderImpl {
     Configuration conf = htable.getConfiguration();
     logScannerActivity = conf.getBoolean(
       ScannerCallable.LOG_SCANNER_ACTIVITY, false);
+    logPerRowCount = conf.getInt(LOG_PER_ROW_COUNT, 100);
+    this.htable = htable;
+  }
+
+  /**
+   * Sets the HBase table.
+   *
+   * @param htable  The {@link org.apache.hadoop.hbase.client.HTable} to scan.
+   * @deprecated Use {@link #setHTable(org.apache.hadoop.hbase.client.HTable htable)} instead.
+   */
+  @Deprecated
+  public void setHTable(HTable htable) {
+    Configuration conf = htable.getConfiguration();
+    logScannerActivity = conf.getBoolean(
+        ScannerCallable.LOG_SCANNER_ACTIVITY, false);
     logPerRowCount = conf.getInt(LOG_PER_ROW_COUNT, 100);
     this.htable = htable;
   }
