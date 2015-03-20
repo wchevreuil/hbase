@@ -50,6 +50,7 @@ public class TestMobSweepJob {
     TEST_UTIL.getConfiguration().setBoolean("hbase.regionserver.info.port.auto", true);
     TEST_UTIL.getConfiguration().set(CommonConfigurationKeys.IO_SERIALIZATIONS_KEY,
         JavaSerialization.class.getName() + "," + WritableSerialization.class.getName());
+    TEST_UTIL.getConfiguration().setInt("hfile.format.version", 3);
     TEST_UTIL.startMiniCluster();
   }
 

@@ -82,6 +82,7 @@ public class TestMobExportSnapshot {
     conf.setBoolean("hbase.master.enabletable.roundrobin", true);
     conf.setInt("mapreduce.map.maxattempts", 10);
     conf.setInt(MobConstants.MOB_FILE_CACHE_SIZE_KEY, 0);
+    conf.setInt("hfile.format.version", 3);
   }
 
   @BeforeClass

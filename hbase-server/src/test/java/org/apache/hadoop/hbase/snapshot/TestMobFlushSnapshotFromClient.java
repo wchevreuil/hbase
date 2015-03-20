@@ -106,6 +106,7 @@ public class TestMobFlushSnapshotFromClient {
     conf.set(HConstants.HBASE_REGION_SPLIT_POLICY_KEY,
       ConstantSizeRegionSplitPolicy.class.getName());
     conf.setInt(MobConstants.MOB_FILE_CACHE_SIZE_KEY, 0);
+    conf.setInt("hfile.format.version", 3);
   }
 
   @Before

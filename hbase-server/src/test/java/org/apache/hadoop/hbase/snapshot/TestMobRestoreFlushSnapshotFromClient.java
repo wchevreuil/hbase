@@ -78,6 +78,7 @@ public class TestMobRestoreFlushSnapshotFromClient {
       RegionServerSnapshotManager.SNAPSHOT_TIMEOUT_MILLIS_DEFAULT * 2);
 
     UTIL.getConfiguration().setInt(MobConstants.MOB_FILE_CACHE_SIZE_KEY, 0);
+    UTIL.getConfiguration().setInt("hfile.format.version", 3);
 
     UTIL.startMiniCluster(3);
   }

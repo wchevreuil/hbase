@@ -67,6 +67,7 @@ public class TestMobRestoreSnapshotHelper {
     archiveDir = new Path(rootDir, HConstants.HFILE_ARCHIVE_DIRECTORY);
     fs = TEST_UTIL.getTestFileSystem();
     TEST_UTIL.getConfiguration().setInt(MobConstants.MOB_FILE_CACHE_SIZE_KEY, 0);
+    TEST_UTIL.getConfiguration().setInt("hfile.format.version", 3);
     conf = TEST_UTIL.getConfiguration();
     FSUtils.setRootDir(conf, rootDir);
   }

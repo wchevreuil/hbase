@@ -71,6 +71,7 @@ public class TestMobCloneSnapshotFromClient {
     TEST_UTIL.getConfiguration().setBoolean(
         "hbase.master.enabletable.roundrobin", true);
     TEST_UTIL.getConfiguration().setInt(MobConstants.MOB_FILE_CACHE_SIZE_KEY, 0);
+    TEST_UTIL.getConfiguration().setInt("hfile.format.version", 3);
     TEST_UTIL.startMiniCluster(3);
   }
 

@@ -97,6 +97,7 @@ public class TestMobFileCompactor {
     TEST_UTIL.getConfiguration().setInt("hbase.master.info.port", 0);
     TEST_UTIL.getConfiguration().setBoolean("hbase.regionserver.info.port.auto", true);
     TEST_UTIL.getConfiguration().setLong(MobConstants.MOB_FILE_COMPACTION_MERGEABLE_THRESHOLD, 5000);
+    TEST_UTIL.getConfiguration().setInt("hfile.format.version", 3);
     TEST_UTIL.startMiniCluster(1);
     pool = createThreadPool(TEST_UTIL.getConfiguration());
   }
