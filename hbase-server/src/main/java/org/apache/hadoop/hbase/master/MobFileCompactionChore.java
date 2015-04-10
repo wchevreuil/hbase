@@ -59,6 +59,9 @@ public class MobFileCompactionChore extends Chore{
       TableDescriptors htds = master.getTableDescriptors();
       Map<String, HTableDescriptor> map = htds.getAll();
       for (HTableDescriptor htd : map.values()) {
+        if (!master.getConnection().isTableEnabled(htd.getTableName())) {
+          continue;
+        }
         boolean reported = false;
         try {
           for (HColumnDescriptor hcd : htd.getColumnFamilies()) {

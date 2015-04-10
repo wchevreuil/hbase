@@ -1596,6 +1596,9 @@ public class MasterRpcServices extends RSRpcServices
    */
   private CompactRegionResponse compactMob(final CompactRegionRequest request,
     TableName tableName) throws IOException {
+    if (!master.getConnection().isTableEnabled(tableName)) {
+          throw new DoNotRetryIOException("Table " + tableName + " is not enabled");
+    }
     boolean isForceAllFiles = false;
     List<HColumnDescriptor> compactedColumns = new ArrayList<HColumnDescriptor>();
     HColumnDescriptor[] hcds = master.getTableDescriptors().get(tableName).getColumnFamilies();
