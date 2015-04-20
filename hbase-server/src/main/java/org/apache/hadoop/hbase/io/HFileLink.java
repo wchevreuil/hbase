@@ -164,6 +164,24 @@ public class HFileLink extends FileLink {
   }
 
   /**
+   * Create an HFileLink instance from table/region/family/hfile location
+   * @param conf {@link Configuration} from which to extract specific archive locations
+   * @param table Table name
+   * @param region Region Name
+   * @param family Family Name
+   * @param hfile HFile Name
+   * @return Link to the file with the specified table/region/family/hfile location
+   * @throws IOException on unexpected error.
+   * @deprecated use {@link #build()} instead.
+   */
+  @Deprecated
+  public static HFileLink create(final Configuration conf, final TableName table,
+                                 final String region, final String family, final String hfile)
+          throws IOException {
+    return build(conf, table, region, family, hfile);
+  }
+
+  /**
    * @return the origin path of the hfile.
    */
   public Path getOriginPath() {
