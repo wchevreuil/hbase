@@ -1189,7 +1189,7 @@ class ConnectionManager {
             "table name cannot be null or zero length");
       }
       if (tableName.equals(TableName.META_TABLE_NAME)) {
-        return locateMeta(tableName, useCache, replicaId);
+        return this.registry.getMetaRegionLocation();
       } else {
         // Region not in the cache - have to go to the meta RS
         return locateRegionInMeta(tableName, row, useCache, retry, replicaId);
@@ -1328,7 +1328,7 @@ class ConnectionManager {
         // Query the meta region
         try {
           // locate the meta region
-          metaLocation = locateRegion(TableName.META_TABLE_NAME, metaKey, true, false);
+          metaLocation = locateRegion(TableName.META_TABLE_NAME, metaKey, false, false);
           // If null still, go around again.
           if (metaLocation == null) continue;
           ClientService.BlockingInterface service = getClient(metaLocation.getDefaultRegionLocation().getServerName());
@@ -1353,6 +1353,7 @@ class ConnectionManager {
             if (locations != null) {
               return locations;
             }
+          } else {
             // If we are not supposed to be using the cache, delete any existing cached location
             // so it won't interfere.
             metaCache.clearCache(tableName, row);
