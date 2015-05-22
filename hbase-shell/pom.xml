@@ -245,7 +245,8 @@
     </dependency>
     <dependency>
       <groupId>org.jruby</groupId>
-      <artifactId>jruby-complete</artifactId>
+      <artifactId>jruby-cloudera</artifactId>
+      <version>1.0.0</version>
     </dependency>
     <!-- Test Dependencies -->
     <dependency>
