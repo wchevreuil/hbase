@@ -36,12 +36,16 @@ import org.apache.hadoop.hbase.mob.MobUtils;
 public class MobStoreScanner extends StoreScanner {
 
   private boolean cacheMobBlocks = false;
+  private boolean rawMobScan = false;
+  private boolean readEmptyValueOnMobCellMiss = false;
   private final HMobStore mobStore;
 
   public MobStoreScanner(Store store, ScanInfo scanInfo, Scan scan,
       final NavigableSet<byte[]> columns, long readPt) throws IOException {
     super(store, scanInfo, scan, columns, readPt);
     cacheMobBlocks = MobUtils.isCacheMobBlocks(scan);
+    rawMobScan = MobUtils.isRawMobScan(scan);
+    readEmptyValueOnMobCellMiss = MobUtils.isReadEmptyValueOnMobCellMiss(scan);
     if (!(store instanceof HMobStore)) {
       throw new IllegalArgumentException("The store " + store + " is not a HMobStore");
     }
@@ -54,9 +58,9 @@ public class MobStoreScanner extends StoreScanner {
    * from the mob file as the result.
    */
   @Override
-  public boolean next(List<Cell> outResult, int limit) throws IOException {
-    boolean result = super.next(outResult, limit);
-    if (!MobUtils.isRawMobScan(scan)) {
+  public boolean next(List<Cell> outResult, ScannerContext ctx) throws IOException {
+    boolean result = super.next(outResult, ctx);
+    if (!rawMobScan) {
       // retrieve the mob data
       if (outResult.isEmpty()) {
         return result;
@@ -66,7 +70,8 @@ public class MobStoreScanner extends StoreScanner {
       for (int i = 0; i < outResult.size(); i++) {
         Cell cell = outResult.get(i);
         if (MobUtils.isMobReferenceCell(cell)) {
-          Cell mobCell = mobStore.resolve(cell, cacheMobBlocks, readPt);
+          Cell mobCell = mobStore
+            .resolve(cell, cacheMobBlocks, readPt, readEmptyValueOnMobCellMiss);
           mobKVCount++;
           mobKVSize += mobCell.getValueLength();
           outResult.set(i, mobCell);
