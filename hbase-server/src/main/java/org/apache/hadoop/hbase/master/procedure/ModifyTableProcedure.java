@@ -367,7 +367,8 @@ public class ModifyTableProcedure
           env,
           getTableName(),
           getRegionInfoList(env),
-          familyName);
+          familyName,
+          oldHTableDescriptor.getFamily(familyName).isMobEnabled());
       }
     }
   }

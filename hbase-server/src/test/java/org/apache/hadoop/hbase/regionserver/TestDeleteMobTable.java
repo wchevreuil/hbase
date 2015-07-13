@@ -24,6 +24,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
+import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.TableName;
@@ -169,6 +170,48 @@ public class TestDeleteMobTable {
       }
     }
   }
+  
+  @Test
+  public void testMobFamilyDelete() throws Exception {
+    byte[] tableName = Bytes.toBytes("testMobFamilyDelete");
+    TableName tn = TableName.valueOf(tableName);
+    HTableDescriptor htd = new HTableDescriptor(tn);
+    HColumnDescriptor hcd = new HColumnDescriptor(FAMILY);
+    hcd.setMobEnabled(true);
+    hcd.setMobThreshold(0);
+    htd.addFamily(hcd);
+    htd.addFamily(new HColumnDescriptor(Bytes.toBytes("family2")));
+    HBaseAdmin admin = null;
+    HTable table = null;
+    try {
+      admin = TEST_UTIL.getHBaseAdmin();
+      admin.createTable(htd);
+      table = new HTable(TEST_UTIL.getConfiguration(), tableName);
+      byte[] value = generateMobValue(10);
+      byte[] row = Bytes.toBytes("row");
+      Put put = new Put(row);
+      put.addColumn(FAMILY, QF, EnvironmentEdgeManager.currentTime(), value);
+      table.put(put);
+      admin.flush(tn);
+      // the mob file exists
+      Assert.assertEquals(1, countMobFiles(tn, hcd.getNameAsString()));
+      Assert.assertEquals(0, countArchiveMobFiles(tn, hcd.getNameAsString()));
+      String fileName = assertHasOneMobRow(table, tn, hcd.getNameAsString());
+      Assert.assertFalse(mobArchiveExist(tn, hcd.getNameAsString(), fileName));
+      Assert.assertTrue(mobTableDirExist(tn));
+      admin.deleteColumn(tn, FAMILY);
+      Assert.assertEquals(0, countMobFiles(tn, hcd.getNameAsString()));
+      Assert.assertEquals(1, countArchiveMobFiles(tn, hcd.getNameAsString()));
+      Assert.assertTrue(mobArchiveExist(tn, hcd.getNameAsString(), fileName));
+      Assert.assertFalse(mobColumnFamilyDirExist(tn));
+    } finally {
+      table.close();
+      if (admin != null) {
+        admin.close();
+      }
+      TEST_UTIL.deleteTable(tableName);
+    }
+  }
 
   private int countMobFiles(TableName tn, String familyName) throws IOException {
     FileSystem fs = TEST_UTIL.getTestFileSystem();
@@ -196,6 +239,14 @@ public class TestDeleteMobTable {
     FileSystem fs = TEST_UTIL.getTestFileSystem();
     Path tableDir = FSUtils.getTableDir(MobUtils.getMobHome(TEST_UTIL.getConfiguration()), tn);
     return fs.exists(tableDir);
+  }
+  
+  private boolean mobColumnFamilyDirExist(TableName tn) throws IOException {
+    FileSystem fs = TEST_UTIL.getTestFileSystem();
+    Path tableDir = FSUtils.getTableDir(MobUtils.getMobHome(TEST_UTIL.getConfiguration()), tn);
+    HRegionInfo mobRegionInfo = MobUtils.getMobRegionInfo(tn);
+    Path mobFamilyDir = new Path(tableDir, new Path(mobRegionInfo.getEncodedName(), Bytes.toString(FAMILY)));
+    return fs.exists(mobFamilyDir);
   }
 
   private boolean mobArchiveExist(TableName tn, String familyName, String fileName)
