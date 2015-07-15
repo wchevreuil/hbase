@@ -229,6 +229,11 @@ public interface MetricsRegionServerWrapper {
   double getBlockCacheHitPercent();
 
   /**
+   * Get the percent of all requests that hit the block cache.
+   */
+  int getBlockHitPercent();
+
+  /**
    * Get the percent of requests with the block cache turned on that hit the block cache.
    */
   double getBlockCacheHitCachingPercent();
