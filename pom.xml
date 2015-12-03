@@ -30,16 +30,16 @@
 -->
   <modelVersion>4.0.0</modelVersion>
   <parent>
-    <groupId>org.apache</groupId>
-    <artifactId>apache</artifactId>
-    <version>12</version>
+    <groupId>com.cloudera.cdh</groupId>
+    <artifactId>cdh-root</artifactId>
+    <version>5.7.0-SNAPSHOT</version>
     <relativePath/>
     <!-- no parent resolution -->
   </parent>
   <groupId>org.apache.hbase</groupId>
   <artifactId>hbase</artifactId>
   <packaging>pom</packaging>
-  <version>1.2.0</version>
+  <version>1.2.0-cdh5.7.0-SNAPSHOT</version>
   <name>Apache HBase</name>
   <description>
     Apache HBase is the Hadoop database. Use it when you need
@@ -417,6 +417,29 @@
   </developers>
   <repositories>
     <repository>
+      <id>cdh.repo</id>
+      <url>https://repository.cloudera.com/artifactory/cloudera-repos</url>
+      <name>Cloudera Repositories</name>
+      <snapshots>
+        <enabled>false</enabled>
+      </snapshots>
+    </repository>
+    <repository>
+      <id>cdh.snapshots.repo</id>
+      <url>https://repository.cloudera.com/artifactory/libs-snapshot-local</url>
+      <name>Cloudera Snapshots Repository</name>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+    </repository>
+    <repository>
+      <id>cloudbees netty</id>
+      <url>http://repository-netty.forge.cloudbees.com/snapshot/</url>
+    </repository>
+    <repository>
       <id>apache release</id>
       <url>https://repository.apache.org/content/repositories/releases/</url>
     </repository>
@@ -524,13 +547,19 @@
             <systemPropertyVariables>
               <test.build.classes>${test.build.classes}</test.build.classes>
             </systemPropertyVariables>
-
+            <includes>
+              <include>${unittest.include}</include>
+            </includes>
             <excludes>
-	      <!-- users can add -D option to skip particular test classes
-		   ex: mvn test -Dtest.exclude.pattern=**/TestFoo.java,**/TestBar.java
-	      -->
-	      <exclude>${test.exclude.pattern}</exclude>
-	    </excludes>
+              <exclude>${integrationtest.include}</exclude>
+              <exclude>**/*$*</exclude>
+              <exclude>${test.exclude.pattern}</exclude>
+            </excludes>
+            <environmentVariables>
+              <LD_LIBRARY_PATH>${env.LD_LIBRARY_PATH}:${project.build.directory}/nativelib</LD_LIBRARY_PATH>
+              <DYLD_LIBRARY_PATH>${env.DYLD_LIBRARY_PATH}:${project.build.directory}/nativelib</DYLD_LIBRARY_PATH>
+              <MALLOC_ARENA_MAX>4</MALLOC_ARENA_MAX>
+            </environmentVariables>
           </configuration>
           <executions>
             <execution>
@@ -767,6 +796,8 @@
               <exclude>**/dependency-reduced-pom.xml</exclude>
               <exclude>**/rat.txt</exclude>
               <exclude>**/ESAPI.properties</exclude>
+              <exclude>**/cloudera/**</exclude>
+              <exclude>**/debian/**</exclude>
             </excludes>
           </configuration>
         </plugin>
@@ -1138,8 +1169,8 @@
     <maven.min.version>3.0.3</maven.min.version>
     <java.min.version>${compileSource}</java.min.version>
     <!-- Dependencies -->
-    <hadoop-two.version>2.5.1</hadoop-two.version>
     <!-- minikdc introduced in hadoop-2.3; override when building earlier versions -->
+    <hadoop-two.version>${cdh.hadoop.version}</hadoop-two.version>
     <hadoop-two-minikdc.version>${hadoop-two.version}</hadoop-two-minikdc.version>
     <hadoop-three.version>3.0.0-SNAPSHOT</hadoop-three.version>
     <commons-cli.version>1.2</commons-cli.version>
@@ -1157,10 +1188,10 @@
     <metrics-core.version>2.2.0</metrics-core.version>
     <guava.version>12.0.1</guava.version>
     <jsr305.version>1.3.9</jsr305.version>
-    <jackson.version>1.9.13</jackson.version>
+    <jackson.version>${cdh.jackson.version}</jackson.version>
     <jasper.version>5.5.23</jasper.version>
-    <jaxb-api.version>2.2.2</jaxb-api.version>
-    <jetty.version>6.1.26</jetty.version>
+    <jaxb-api.version>2.1</jaxb-api.version>
+    <jetty.version>6.1.26.cloudera.4</jetty.version>
     <jetty.jspapi.version>6.1.14</jetty.jspapi.version>
     <jersey.version>1.9</jersey.version>
     <jruby.version>1.6.8</jruby.version>
@@ -1172,9 +1203,11 @@
     <protobuf.version>2.5.0</protobuf.version>
     <thrift.path>thrift</thrift.path>
     <thrift.version>0.9.3</thrift.version>
-    <zookeeper.version>3.4.6</zookeeper.version>
-    <slf4j.version>1.7.7</slf4j.version>
     <clover.version>4.0.3</clover.version>
+    <zookeeper.version>${cdh.zookeeper.version}</zookeeper.version>
+    <slf4j.version>${cdh.slf4j.version}</slf4j.version>
+    <hadoop-snappy.version>${cdh.hadoop-snappy.version}</hadoop-snappy.version>
+    <jets3.version>0.9.0</jets3.version>
     <jamon-runtime.version>2.4.1</jamon-runtime.version>
     <jettison.version>1.3.3</jettison.version>
     <netty.version>4.0.23.Final</netty.version>
@@ -1217,7 +1250,12 @@
     <surefire.testFailureIgnore>false</surefire.testFailureIgnore>
     <test.output.tofile>true</test.output.tofile>
     <surefire.timeout>900</surefire.timeout>
-    <test.exclude.pattern></test.exclude.pattern>
+    <!-- For flaky tests exclusion -->
+    <test.exclude></test.exclude>
+    <test.exclude.pattern>**/${test.exclude}.java</test.exclude.pattern>
+    <!-- Test inclusion patterns -->
+    <unittest.include>**/Test*.java</unittest.include>
+    <integrationtest.include>**/IntegrationTest*.java</integrationtest.include>
     <!-- default Xmx value is 2800m. Use -Dsurefire.Xmx=xxg to run tests with different JVM Xmx value -->
     <surefire.Xmx>2800m</surefire.Xmx>
     <surefire.cygwinXmx>2800m</surefire.cygwinXmx>
@@ -1301,12 +1339,12 @@
       </dependency>
       <dependency>
         <groupId>org.apache.hbase</groupId>
-        <artifactId>${compat.module}</artifactId>
+        <artifactId>hbase-hadoop2-compat</artifactId>
         <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>org.apache.hbase</groupId>
-        <artifactId>${compat.module}</artifactId>
+        <artifactId>hbase-hadoop2-compat</artifactId>
         <version>${project.version}</version>
         <type>test-jar</type>
         <scope>test</scope>
@@ -1719,6 +1757,23 @@
        <artifactId>bcprov-jdk16</artifactId>
        <version>${bouncycastle.version}</version>
        <scope>test</scope>
+     </dependency>
+     <dependency>
+       <groupId>net.java.dev.jets3t</groupId>
+       <artifactId>jets3t</artifactId>
+       <version>${jets3.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.jmock</groupId>
+       <artifactId>jmock-junit4</artifactId>
+       <version>${jmock-junit4.version}</version>
+       <scope>test</scope>
+       <exclusions>
+         <exclusion>
+           <artifactId>junit-dep</artifactId>
+           <groupId>junit</groupId>
+         </exclusion>
+       </exclusions>
      </dependency>
     </dependencies>
   </dependencyManagement>
