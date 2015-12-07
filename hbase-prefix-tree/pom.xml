@@ -144,6 +144,21 @@
   </dependencies>
 
   <profiles>
+    <profile>
+      <id>cdh5</id>
+      <activation>
+        <property>
+            <!--Below formatting for dev-support/generate-hadoopX-poms.sh-->
+            <!--h2--><name>!hadoop.profile</name>
+        </property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-common</artifactId>
+        </dependency>
+      </dependencies>
+    </profile>
     <!-- Profiles for building against different hadoop versions -->
     <profile>
       <id>hadoop-1.1</id>
@@ -184,7 +199,7 @@
       <activation>
         <property>
             <!--Below formatting for dev-support/generate-hadoopX-poms.sh-->
-            <!--h2--><name>!hadoop.profile</name>
+            <!--h2--><name>2.0</name>
         </property>
       </activation>
       <dependencies>

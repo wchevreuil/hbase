@@ -153,6 +153,11 @@
       <artifactId>commons-logging</artifactId>
     </dependency>
     <dependency>
+       <groupId>com.google.code.findbugs</groupId>
+       <artifactId>jsr305</artifactId>
+       <optional>true</optional>
+    </dependency>
+    <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
     </dependency>
@@ -245,11 +250,6 @@
         </property>
       </activation>
       <dependencies>
-        <dependency>
-           <groupId>com.google.code.findbugs</groupId>
-           <artifactId>jsr305</artifactId>
-           <optional>true</optional>
-        </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>
           <artifactId>hadoop-auth</artifactId>
@@ -383,10 +383,6 @@
               <artifactId>jasper-runtime</artifactId>
             </exclusion>
           </exclusions>
-        </dependency>
-        <dependency>
-          <groupId>org.apache.hadoop</groupId>
-          <artifactId>hadoop-auth</artifactId>
         </dependency>
         <dependency>
           <groupId>org.apache.hadoop</groupId>

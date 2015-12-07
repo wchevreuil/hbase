@@ -317,7 +317,6 @@
     <dependency>
       <groupId>org.codehaus.jackson</groupId>
       <artifactId>jackson-mapper-asl</artifactId>
-      <scope>test</scope>
     </dependency>
   </dependencies>
   <profiles>
@@ -385,6 +384,30 @@
       </build>
     </profile>
     <!-- Hadoop-specific dependencies -->
+    <!-- profile for building against CDH5. This is the default profile. -->
+    <profile>
+      <id>cdh5</id>
+      <activation>
+        <property>
+            <!--Below formatting for dev-support/generate-hadoopX-poms.sh-->
+            <!--h2--><name>!hadoop.profile</name>
+        </property>
+      </activation>
+      <dependencies>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-core</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-common</artifactId>
+        </dependency>
+        <dependency>
+          <groupId>org.apache.hadoop</groupId>
+          <artifactId>hadoop-auth</artifactId>
+        </dependency>
+      </dependencies>
+    </profile>
     <!-- profile for building against Hadoop 2.0.x
          This is the default.
          -->
@@ -393,7 +416,7 @@
       <activation>
         <property>
           <!--Below formatting for dev-support/generate-hadoopX-poms.sh-->
-          <!--h2--><name>!hadoop.profile</name>
+          <!--h2--><name>2.0</name>
         </property>
       </activation>
       <dependencies>
