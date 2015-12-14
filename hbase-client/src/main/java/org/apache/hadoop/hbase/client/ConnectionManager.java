@@ -723,7 +723,7 @@ class ConnectionManager {
       } else {
         this.metrics = null;
       }
-      
+
       this.hostnamesCanChange = conf.getBoolean(RESOLVE_HOSTNAME_ON_FAIL_KEY, true);
       this.metaCache = new MetaCache(this.metrics);
     }
@@ -1189,7 +1189,11 @@ class ConnectionManager {
             "table name cannot be null or zero length");
       }
       if (tableName.equals(TableName.META_TABLE_NAME)) {
-        return this.registry.getMetaRegionLocation();
+        if (useMetaReplicas) {
+          return locateMeta(tableName, useCache, replicaId);
+        } else {
+          return this.registry.getMetaRegionLocation();
+        }
       } else {
         // Region not in the cache - have to go to the meta RS
         return locateRegionInMeta(tableName, row, useCache, retry, replicaId);
@@ -1290,11 +1294,11 @@ class ConnectionManager {
       */
     private RegionLocations locateRegionInMeta(TableName tableName, byte[] row,
                    boolean useCache, boolean retry, int replicaId) throws IOException {
-      RegionLocations locations;
+
       // If we are supposed to be using the cache, look in the cache to see if
       // we already have the region.
       if (useCache) {
-        locations = getCachedLocation(tableName, row);
+        RegionLocations locations = getCachedLocation(tableName, row);
         if (locations != null && locations.getRegionLocation(replicaId) != null) {
           return locations;
         }
@@ -1305,6 +1309,19 @@ class ConnectionManager {
       // without knowing the precise region names.
       byte[] metaKey = HRegionInfo.createRegionName(tableName, row, HConstants.NINES, false);
 
+      Scan s = null;
+      if (useMetaReplicas) {
+        // for CDH-5.0 compatibility, we are not going to use reverse scan
+        // unless the user enabled meta replicas. In this case we know that
+        // the server support reverse scan.
+        s = new Scan();
+        s.setReversed(true);
+        s.setStartRow(metaKey);
+        s.setSmall(true);
+        s.setCaching(1);
+        s.setConsistency(Consistency.TIMELINE);
+      }
+
       int localNumRetries = (retry ? numTries : 1);
 
       for (int tries = 0; true; tries++) {
@@ -1314,7 +1331,7 @@ class ConnectionManager {
               " after " + localNumRetries + " tries.");
         }
         if (useCache) {
-          locations = getCachedLocation(tableName, row);
+          RegionLocations locations = getCachedLocation(tableName, row);
           if (locations != null && locations.getRegionLocation(replicaId) != null) {
             return locations;
           }
@@ -1327,48 +1344,68 @@ class ConnectionManager {
         RegionLocations metaLocation = null;
         // Query the meta region
         try {
-          // locate the meta region
-          metaLocation = locateRegion(TableName.META_TABLE_NAME, metaKey, false, false);
-          // If null still, go around again.
-          if (metaLocation == null) continue;
-          ClientService.BlockingInterface service = getClient(metaLocation.getDefaultRegionLocation().getServerName());
+          Result regionInfoRow = null;
+          if (s != null) {
+            ReversedClientScanner rcs = null;
+            try {
+              rcs = new ClientSmallReversedScanner(conf, s, TableName.META_TABLE_NAME, this,
+                rpcCallerFactory, rpcControllerFactory, getMetaLookupPool(), 0);
+              regionInfoRow = rcs.next();
+            } finally {
+              if (rcs != null) {
+                rcs.close();
+              }
+            }
+          }
+          // if we are using meta replicas, we may end up with an empty row,
+          // if the replica did not received the update yet.
+          // In this case we fallback to the old method for safety.
+          if (regionInfoRow == null) {
+            // locate the meta region (compatible with versions that does not support reverse scan)
+            metaLocation = locateRegion(TableName.META_TABLE_NAME, metaKey, false, false);
+            // If null still, go around again.
+            if (metaLocation == null) continue;
 
-          Result regionInfoRow;
-          // This block guards against two threads trying to load the meta
-          // region at the same time. The first will load the meta region and
-          // the second will use the value that the first one found.
-          if (useCache) {
-            if (TableName.META_TABLE_NAME.equals(tableName) && getRegionCachePrefetch(tableName)) {
-              // Check the cache again for a hit in case some other thread made the
-              // same query while we were waiting on the lock.
-              locations = getCachedLocation(tableName, row);
+            ClientService.BlockingInterface service =
+              getClient(metaLocation.getDefaultRegionLocation().getServerName());
+
+            // This block guards against two threads trying to load the meta
+            // region at the same time. The first will load the meta region and
+            // the second will use the value that the first one found.
+            if (useCache) {
+              if (TableName.META_TABLE_NAME.equals(tableName) && getRegionCachePrefetch(tableName)) {
+                // Check the cache again for a hit in case some other thread made the
+                // same query while we were waiting on the lock.
+                RegionLocations locations = getCachedLocation(tableName, row);
+                if (locations != null) {
+                  return locations;
+                }
+                // If the parent table is META, we may want to pre-fetch some
+                // region info into the global region cache for this table.
+                prefetchRegionCache(tableName, row);
+              }
+              RegionLocations locations = getCachedLocation(tableName, row);
               if (locations != null) {
                 return locations;
               }
-              // If the parent table is META, we may want to pre-fetch some
-              // region info into the global region cache for this table.
-              prefetchRegionCache(tableName, row);
+            } else {
+              // If we are not supposed to be using the cache, delete any existing cached location
+              // so it won't interfere.
+              metaCache.clearCache(tableName, row);
             }
-            locations = getCachedLocation(tableName, row);
-            if (locations != null) {
-              return locations;
-            }
-          } else {
-            // If we are not supposed to be using the cache, delete any existing cached location
-            // so it won't interfere.
-            metaCache.clearCache(tableName, row);
-          }
 
-          // Query the meta region for the location of the meta region
-          regionInfoRow = ProtobufUtil.getRowOrBefore(service,
-            metaLocation.getDefaultRegionLocation().getRegionInfo().getRegionName(), metaKey, HConstants.CATALOG_FAMILY);
+            // Query the meta region for the location of the meta region
+            regionInfoRow = ProtobufUtil.getRowOrBefore(service,
+              metaLocation.getDefaultRegionLocation().getRegionInfo().getRegionName(),
+              metaKey, HConstants.CATALOG_FAMILY);
+          }
 
           if (regionInfoRow == null) {
             throw new TableNotFoundException(tableName);
           }
 
           // convert the row result into the HRegionLocation we need!
-          locations = MetaTableAccessor.getRegionLocations(regionInfoRow);
+          RegionLocations locations = MetaTableAccessor.getRegionLocations(regionInfoRow);
           if (locations == null || locations.getRegionLocation(replicaId) == null) {
             throw new IOException("HRegionInfo was null in " +
               tableName + ", row=" + regionInfoRow);
@@ -1427,7 +1464,7 @@ class ConnectionManager {
           if (tries < localNumRetries - 1) {
             if (LOG.isDebugEnabled()) {
               LOG.debug("locateRegionInMeta parentTable=" +
-                  TableName.META_TABLE_NAME + ", metaLocation=" +
+                  TableName.META_TABLE_NAME + ", metaLocation=" + metaLocation +
                 ", attempt=" + tries + " of " +
                 localNumRetries + " failed; retrying after sleep of " +
                 ConnectionUtils.getPauseTime(this.pause, tries) + " because: " + e.getMessage());

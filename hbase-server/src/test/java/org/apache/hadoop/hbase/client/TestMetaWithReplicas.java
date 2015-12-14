@@ -246,8 +246,9 @@ public class TestMetaWithReplicas {
       TEST_UTIL.getHBaseAdmin().disableTable(TABLE);
       TEST_UTIL.getHBaseAdmin().deleteTable(TABLE);
     }
-    try (Table htable =
-        TEST_UTIL.createTable(TABLE, FAMILIES, TEST_UTIL.getConfiguration());) {
+    Configuration conf = new Configuration(TEST_UTIL.getConfiguration());
+    conf.setBoolean(HConstants.USE_META_REPLICAS, true);
+    try (Table htable = TEST_UTIL.createTable(TABLE, FAMILIES, conf)) {
       byte[] row = "test".getBytes();
       HConnectionImplementation c = ((HConnectionImplementation)((HTable)htable).connection);
       // check that metalookup pool would get created
