@@ -367,4 +367,44 @@ public interface MetricsRegionServerWrapper {
    * Gets the hit percent to the mob file cache.
    */
   int getMobFileCacheHitPercent();
+  
+  long getDataMissCount();
+
+  long getLeafIndexMissCount();
+
+  long getBloomChunkMissCount();
+
+  long getMetaMissCount();
+
+  long getRootIndexMissCount();
+
+  long getIntermediateIndexMissCount();
+
+  long getFileInfoMissCount();
+
+  long getGeneralBloomMetaMissCount();
+
+  long getDeleteFamilyBloomMissCount();
+
+  long getTrailerMissCount();
+
+  long getDataHitCount();
+
+  long getLeafIndexHitCount();
+
+  long getBloomChunkHitCount();
+
+  long getMetaHitCount();
+
+  long getRootIndexHitCount();
+
+  long getIntermediateIndexHitCount();
+
+  long getFileInfoHitCount();
+
+  long getGeneralBloomMetaHitCount();
+
+  long getDeleteFamilyBloomHitCount();
+
+  long getTrailerHitCount();
 }
