@@ -64,10 +64,7 @@ import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactor;
 import org.apache.hadoop.hbase.regionserver.BloomType;
 import org.apache.hadoop.hbase.regionserver.HStore;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.FSUtils;
-import org.apache.hadoop.hbase.util.ReflectionUtils;
-import org.apache.hadoop.hbase.util.Threads;
+import org.apache.hadoop.hbase.util.*;
 
 /**
  * The mob utilities
@@ -257,7 +254,7 @@ public class MobUtils {
         if (!HFileLink.isHFileLink(file.getPath())) {
           mobFileName = MobFileName.create(fileName);
         } else {
-          HFileLink hfileLink = new HFileLink(conf, file.getPath());
+          HFileLink hfileLink = HFileLink.buildFromHFileLinkPattern(conf, file.getPath());
           mobFileName = MobFileName.create(hfileLink.getOriginPath().getName());
         }
         Date fileDate = parseDate(mobFileName.getDate());
@@ -554,7 +551,8 @@ public class MobUtils {
     HColumnDescriptor family, MobFileName mobFileName, Path basePath, long maxKeyCount,
     Compression.Algorithm compression, CacheConfig cacheConfig) throws IOException {
     HFileContext hFileContext = new HFileContextBuilder().withCompression(compression)
-      .withIncludesMvcc(true).withIncludesTags(true).withChecksumType(HFile.DEFAULT_CHECKSUM_TYPE)
+      .withIncludesMvcc(true).withIncludesTags(true).withChecksumType(
+            ChecksumType.getDefaultChecksumType())
       .withBytesPerCheckSum(HFile.DEFAULT_BYTES_PER_CHECKSUM).withBlockSize(family.getBlocksize())
       .withHBaseCheckSum(true).withDataBlockEncoding(family.getDataBlockEncoding()).build();
 

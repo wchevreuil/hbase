@@ -814,9 +814,9 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     status.setStatus("Calling postStartMaster coprocessors");
     
     this.expiredMobFileCleanerChore = new ExpiredMobFileCleanerChore(this);
-    Threads.setDaemonThreadRunning(expiredMobFileCleanerChore.getThread());
+    getChoreService().scheduleChore(this.expiredMobFileCleanerChore);
     this.mobFileCompactChore = new MobFileCompactionChore(this);
-    Threads.setDaemonThreadRunning(mobFileCompactChore.getThread());
+    getChoreService().scheduleChore(this.mobFileCompactChore);
     this.mobFileCompactThread = new MasterMobFileCompactionThread(this);
 
     if (this.cpHost != null) {
@@ -1187,10 +1187,10 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
 
   private void stopChores() {
     if (this.expiredMobFileCleanerChore != null) {
-      this.expiredMobFileCleanerChore.interrupt();
+      this.expiredMobFileCleanerChore.cancel(true);
     }
     if (this.mobFileCompactChore != null) {
-      this.mobFileCompactChore.interrupt();
+      this.mobFileCompactChore.cancel(true);
     }
     if (this.balancerChore != null) {
       this.balancerChore.cancel(true);

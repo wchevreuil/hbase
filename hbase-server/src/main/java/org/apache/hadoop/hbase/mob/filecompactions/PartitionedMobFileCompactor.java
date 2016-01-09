@@ -58,15 +58,9 @@ import org.apache.hadoop.hbase.mob.MobUtils;
 import org.apache.hadoop.hbase.mob.filecompactions.MobFileCompactionRequest.CompactionType;
 import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactionRequest.CompactionPartition;
 import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactionRequest.CompactionPartitionId;
-import org.apache.hadoop.hbase.regionserver.BloomType;
-import org.apache.hadoop.hbase.regionserver.HStore;
-import org.apache.hadoop.hbase.regionserver.ScanInfo;
-import org.apache.hadoop.hbase.regionserver.ScanType;
-import org.apache.hadoop.hbase.regionserver.StoreFile;
+import org.apache.hadoop.hbase.regionserver.*;
 import org.apache.hadoop.hbase.regionserver.StoreFile.Writer;
-import org.apache.hadoop.hbase.regionserver.StoreFileInfo;
-import org.apache.hadoop.hbase.regionserver.StoreFileScanner;
-import org.apache.hadoop.hbase.regionserver.StoreScanner;
+import org.apache.hadoop.hbase.regionserver.ScannerContext;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 
@@ -392,8 +386,11 @@ public class PartitionedMobFileCompactor extends MobFileCompactor {
       refFilePath = refFileWriter.getPath();
       List<Cell> cells = new ArrayList<Cell>();
       boolean hasMore = false;
+
+      ScannerContext scannerContext =
+          ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
       do {
-        hasMore = scanner.next(cells, compactionKVMax);
+        hasMore = scanner.next(cells, scannerContext);
         for (Cell cell : cells) {
           // TODO remove this after the new code are introduced.
           KeyValue kv = KeyValueUtil.ensureKeyValue(cell);
@@ -498,8 +495,10 @@ public class PartitionedMobFileCompactor extends MobFileCompactor {
       filePath = writer.getPath();
       List<Cell> cells = new ArrayList<Cell>();
       boolean hasMore = false;
+      ScannerContext scannerContext =
+          ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
       do {
-        hasMore = scanner.next(cells, compactionKVMax);
+        hasMore = scanner.next(cells, scannerContext);
         for (Cell cell : cells) {
           // TODO remove this after the new code are introduced.
           KeyValue kv = KeyValueUtil.ensureKeyValue(cell);
@@ -538,11 +537,11 @@ public class PartitionedMobFileCompactor extends MobFileCompactor {
   private StoreScanner createScanner(List<StoreFile> filesToCompact, ScanType scanType)
     throws IOException {
     List scanners = StoreFileScanner.getScannersForStoreFiles(filesToCompact, false, true, false,
-      null, HConstants.LATEST_TIMESTAMP);
+      false, HConstants.LATEST_TIMESTAMP);
     Scan scan = new Scan();
     scan.setMaxVersions(column.getMaxVersions());
     long ttl = HStore.determineTTLFromFamily(column);
-    ScanInfo scanInfo = new ScanInfo(column, ttl, 0, KeyValue.COMPARATOR);
+    ScanInfo scanInfo = new ScanInfo(conf, column, ttl, 0, KeyValue.COMPARATOR);
     StoreScanner scanner = new StoreScanner(scan, scanInfo, scanType, null, scanners, 0L,
       HConstants.LATEST_TIMESTAMP);
     return scanner;
