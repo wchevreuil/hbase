@@ -39,11 +39,13 @@ import org.apache.hadoop.hbase.regionserver.HStore;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.MobCompactionStoreScanner;
 import org.apache.hadoop.hbase.regionserver.ScanType;
+import org.apache.hadoop.hbase.regionserver.ScannerContext;
 import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.regionserver.StoreFile.Writer;
 import org.apache.hadoop.hbase.regionserver.StoreFileScanner;
 import org.apache.hadoop.hbase.regionserver.compactions.DefaultCompactor;
+import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.util.Bytes;
 
 /**
@@ -71,15 +73,15 @@ public class DefaultMobCompactor extends DefaultCompactor {
   /**
    * Creates a writer for a new file in a temporary directory.
    * @param fd The file details.
-   * @param smallestReadPoint The smallest mvcc readPoint across all the scanners in this region.
+   * @param shouldDropBehind Should the writer drop behind.
    * @return Writer for a new StoreFile in the tmp dir.
    * @throws IOException
    */
   @Override
-  protected Writer createTmpWriter(FileDetails fd, long smallestReadPoint) throws IOException {
+  protected Writer createTmpWriter(FileDetails fd, boolean shouldDropBehind) throws IOException {
     // make this writer with tags always because of possible new cells with tags.
     StoreFile.Writer writer = store.createWriterInTmp(fd.maxKeyCount, this.compactionCompression,
-        true, fd.maxMVCCReadpoint >= smallestReadPoint, true);
+      true, true, true, shouldDropBehind);
     return writer;
   }
 
@@ -142,7 +144,8 @@ public class DefaultMobCompactor extends DefaultCompactor {
    */
   @Override
   protected boolean performCompaction(FileDetails fd, InternalScanner scanner, CellSink writer,
-      long smallestReadPoint, boolean cleanSeqId, boolean major) throws IOException {
+      long smallestReadPoint, boolean cleanSeqId,
+      CompactionThroughputController throughputController, boolean major) throws IOException {
     if (!(scanner instanceof MobCompactionStoreScanner)) {
       throw new IllegalArgumentException(
           "The scanner should be an instance of MobCompactionStoreScanner");
@@ -181,8 +184,10 @@ public class DefaultMobCompactor extends DefaultCompactor {
       }
       delFileWriter = mobStore.createDelFileWriterInTmp(new Date(fd.latestPutTs), fd.maxKeyCount,
           store.getFamily().getCompression(), store.getRegionInfo().getStartKey());
+      ScannerContext scannerContext =
+        ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
       do {
-        hasMore = compactionScanner.next(cells, compactionKVMax);
+        hasMore = compactionScanner.next(cells, scannerContext);
         // output to writer:
         for (Cell c : cells) {
           // TODO remove the KeyValueUtil.ensureKeyValue before merging back to trunk.
