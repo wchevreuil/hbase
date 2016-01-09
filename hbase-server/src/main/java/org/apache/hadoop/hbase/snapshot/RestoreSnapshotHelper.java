@@ -503,7 +503,7 @@ public class RestoreSnapshotHelper {
         for (SnapshotRegionManifest.StoreFile storeFile: hfilesToAdd) {
           LOG.debug("Adding HFileLink " + storeFile.getName() +
             " to region=" + regionInfo.getEncodedName() + " table=" + tableName);
-          restoreStoreFile(familyDir, regionInfo, storeFile);
+          restoreStoreFile(familyDir, regionInfo, storeFile, createBackRefs);
         }
       } else {
         // Family doesn't exists in the snapshot
@@ -524,7 +524,7 @@ public class RestoreSnapshotHelper {
 
       for (SnapshotRegionManifest.StoreFile storeFile: familyEntry.getValue()) {
         LOG.trace("Adding HFileLink " + storeFile.getName() + " to table=" + tableName);
-        restoreStoreFile(familyDir, regionInfo, storeFile);
+        restoreStoreFile(familyDir, regionInfo, storeFile, createBackRefs);
       }
     }
   }
@@ -616,7 +616,7 @@ public class RestoreSnapshotHelper {
       Path familyDir = new Path(regionDir, familyFiles.getFamilyName().toStringUtf8());
       for (SnapshotRegionManifest.StoreFile storeFile: familyFiles.getStoreFilesList()) {
         LOG.info("Adding HFileLink " + storeFile.getName() + " to table=" + tableName);
-        restoreStoreFile(familyDir, snapshotRegionInfo, storeFile);
+        restoreStoreFile(familyDir, snapshotRegionInfo, storeFile, createBackRefs);
       }
     }
   }

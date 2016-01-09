@@ -3570,13 +3570,13 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
     // The regionserver holding the first region of the table is responsible for taking the
     // manifest of the mob dir.
-    if (!Bytes.equals(getStartKey(), HConstants.EMPTY_START_ROW))
+    if (!Bytes.equals(getRegionInfo().getStartKey(), HConstants.EMPTY_START_ROW))
       return;
 
     // if any cf's have is mob enabled, add the "mob region" to the manifest.
-    Map<byte[], Store> stores = getStores();
-    for (Entry<byte[], Store> store : stores.entrySet()) {
-      boolean hasMobStore = store.getValue().getFamily().isMobEnabled();
+    List<Store> stores = getStores();
+    for (Store store : stores) {
+      boolean hasMobStore = store.getFamily().isMobEnabled();
       if (hasMobStore) {
         // use the .mob as the start key and 0 as the regionid
         HRegionInfo mobRegionInfo = MobUtils.getMobRegionInfo(this.getTableDesc().getTableName());
