@@ -39,6 +39,7 @@ import org.apache.hadoop.hbase.regionserver.DefaultStoreFlusher;
 import org.apache.hadoop.hbase.regionserver.HMobStore;
 import org.apache.hadoop.hbase.regionserver.InternalScanner;
 import org.apache.hadoop.hbase.regionserver.MemStoreSnapshot;
+import org.apache.hadoop.hbase.regionserver.ScannerContext;
 import org.apache.hadoop.hbase.regionserver.Store;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
 import org.apache.hadoop.hbase.util.Bytes;
@@ -168,8 +169,11 @@ public class DefaultMobStoreFlusher extends DefaultStoreFlusher {
           .getName());
       List<Cell> cells = new ArrayList<Cell>();
       boolean hasMore;
+      ScannerContext scannerContext =
+              ScannerContext.newBuilder().setBatchLimit(compactionKVMax).build();
+      
       do {
-        hasMore = scanner.next(cells, compactionKVMax);
+        hasMore = scanner.next(cells, scannerContext);
         if (!cells.isEmpty()) {
           for (Cell c : cells) {
             // If we know that this KV is going to be included always, then let us
