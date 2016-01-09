@@ -205,7 +205,7 @@ public class TestMobCompaction {
 
     // The following will bulk load the above generated store files and compact, with 600(fileSize)
     // > 300(threshold)
-    boolean result = region.bulkLoadHFiles(hfiles, true);
+    boolean result = region.bulkLoadHFiles(hfiles, true, null);
     assertTrue("Bulkload result:", result);
     assertEquals("Before compaction: store files", compactionThreshold, countStoreFiles());
     assertEquals("Before compaction: mob file count", 0, countMobFiles());
@@ -250,7 +250,7 @@ public class TestMobCompaction {
 
     assertEquals("Before compaction: store files", numHfiles + 1, countStoreFiles());
     assertEquals("Before compaction: mob files", numHfiles, countMobFiles());
-    region.compactStores(true);
+    region.compact(true);
     assertEquals("After compaction: store files", 1, countStoreFiles());
     // still have original mob hfiles and now added a mob del file
     assertEquals("After compaction: mob files", numHfiles + 1, countMobFiles());
@@ -443,13 +443,13 @@ public class TestMobCompaction {
           numDelfiles++;
         }
       }
-      List scanners = StoreFileScanner.getScannersForStoreFiles(sfs, false, true, false, null,
+      List scanners = StoreFileScanner.getScannersForStoreFiles(sfs, false, true, false, false,
           HConstants.LATEST_TIMESTAMP);
       Scan scan = new Scan();
       scan.setMaxVersions(hcd.getMaxVersions());
       long timeToPurgeDeletes = Math.max(conf.getLong("hbase.hstore.time.to.purge.deletes", 0), 0);
       long ttl = HStore.determineTTLFromFamily(hcd);
-      ScanInfo scanInfo = new ScanInfo(hcd, ttl, timeToPurgeDeletes, KeyValue.COMPARATOR);
+      ScanInfo scanInfo = new ScanInfo(conf, hcd, ttl, timeToPurgeDeletes, KeyValue.COMPARATOR);
       StoreScanner scanner = new StoreScanner(scan, scanInfo, ScanType.COMPACT_DROP_DELETES, null,
           scanners, 0L, HConstants.LATEST_TIMESTAMP);
       List<Cell> results = new ArrayList<>();

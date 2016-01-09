@@ -41,7 +41,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hbase.Abortable;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
-import org.apache.hadoop.hbase.KeyValue;
+import org.apache.hadoop.hbase.NoTagsKeyValue;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Scan;
@@ -256,7 +256,7 @@ public class SweepJob {
 
     job.setInputFormatClass(TableInputFormat.class);
     job.setMapOutputKeyClass(Text.class);
-    job.setMapOutputValueClass(KeyValue.class);
+    job.setMapOutputValueClass(NoTagsKeyValue.class);
     job.setReducerClass(SweepReducer.class);
     job.setOutputFormatClass(NullOutputFormat.class);
     String jobName = getCustomJobName(this.getClass().getSimpleName(), tn, familyName);

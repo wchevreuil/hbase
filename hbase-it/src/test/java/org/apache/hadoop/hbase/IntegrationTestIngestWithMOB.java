@@ -40,7 +40,7 @@ import org.apache.hadoop.hbase.testclassification.IntegrationTests;
 public class IntegrationTestIngestWithMOB extends IntegrationTestIngest {
   private static final char COLON = ':';
 
-  private byte[] mobColumnFamily = LoadTestTool.COLUMN_FAMILY;
+  private byte[] mobColumnFamily = LoadTestTool.DEFAULT_COLUMN_FAMILY;
   public static final String THRESHOLD = "threshold";
   public static final String MIN_MOB_DATA_SIZE = "minMobDataSize";
   public static final String MAX_MOB_DATA_SIZE = "maxMobDataSize";

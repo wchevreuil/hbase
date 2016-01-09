@@ -56,7 +56,7 @@ import org.junit.experimental.categories.Category;
  */
 @Category(LargeTests.class)
 public class TestMobSnapshotCloneIndependence {
-  private static final Log LOG = LogFactory.getLog(TestSnapshotCloneIndependence.class);
+  private static final Log LOG = LogFactory.getLog(TestMobSnapshotCloneIndependence.class);
 
   private static final HBaseTestingUtility UTIL = new HBaseTestingUtility();
 

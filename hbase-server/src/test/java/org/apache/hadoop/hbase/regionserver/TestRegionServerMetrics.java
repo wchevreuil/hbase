@@ -521,7 +521,7 @@ public class TestRegionServerMetrics {
     htd.addFamily(hcd);
     HBaseAdmin admin = new HBaseAdmin(conf);
     HTable t = TEST_UTIL.createTable(htd, new byte[0][0], conf);
-    HRegion region = rs.getOnlineRegions(tableName).get(0);
+    Region region = rs.getOnlineRegions(tableName).get(0);
     t.setAutoFlush(true, true);
     for (int insertCount = 0; insertCount < numHfiles; insertCount++) {
       Put p = new Put(Bytes.toBytes(insertCount));
@@ -538,11 +538,10 @@ public class TestRegionServerMetrics {
     metricsRegionServer.getRegionServerWrapper().forceRecompute();
     metricsHelper.assertCounter("mobScanCellsCount", 2, serverSource);
     region.getTableDesc().getFamily(cf).setMobThreshold(100);
-    region.initialize();
-    region.compactStores(true);
+    ((HRegion)region).initialize();
+    region.compact(true);
     metricsRegionServer.getRegionServerWrapper().forceRecompute();
-    metricsHelper.assertCounter("mobCompactedFromMobCellsCount", numHfiles,
-        serverSource);
+    metricsHelper.assertCounter("mobCompactedFromMobCellsCount", numHfiles, serverSource);
     metricsHelper.assertCounter("mobCompactedIntoMobCellsCount", 0, serverSource);
     scanner = t.getScanner(scan);
     scanner.next(100);
@@ -557,8 +556,8 @@ public class TestRegionServerMetrics {
       admin.flush(tableName);
     }
     region.getTableDesc().getFamily(cf).setMobThreshold(0);
-    region.initialize();
-    region.compactStores(true);
+    ((HRegion)region).initialize();
+    region.compact(true);
     metricsRegionServer.getRegionServerWrapper().forceRecompute();
     // metrics are reset by the region initialization
     metricsHelper.assertCounter("mobCompactedFromMobCellsCount", 0, serverSource);

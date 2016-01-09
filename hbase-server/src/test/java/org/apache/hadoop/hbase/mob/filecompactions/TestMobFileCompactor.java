@@ -733,7 +733,7 @@ public class TestMobFileCompactor {
           Bytes.toBytes(tableNameAsString));
       for (HRegion region : regions) {
         region.waitForFlushesAndCompactions();
-        region.compactStores(true);
+        region.compact(true);
       }
     }
   }

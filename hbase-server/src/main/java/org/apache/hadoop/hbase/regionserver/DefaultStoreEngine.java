@@ -65,10 +65,10 @@ public class DefaultStoreEngine extends StoreEngine<
   @Override
   protected void createComponents(
       Configuration conf, Store store, KVComparator kvComparator) throws IOException {
-    storeFileManager = new DefaultStoreFileManager(kvComparator, conf, compactionPolicy.getConf());
     createCompactor(conf, store);
     createCompactionPolicy(conf, store);
     createStoreFlusher(conf, store);
+    storeFileManager = new DefaultStoreFileManager(kvComparator, conf, compactionPolicy.getConf());
   }
 
   protected void createCompactor(Configuration conf, Store store) throws IOException {

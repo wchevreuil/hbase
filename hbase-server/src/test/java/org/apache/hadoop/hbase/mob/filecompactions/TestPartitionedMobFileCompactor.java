@@ -393,12 +393,12 @@ public class TestPartitionedMobFileCompactor {
       sfs.add(sf);
     }
     List scanners = StoreFileScanner.getScannersForStoreFiles(sfs, false, true,
-        false, null, HConstants.LATEST_TIMESTAMP);
+        false, false, HConstants.LATEST_TIMESTAMP);
     Scan scan = new Scan();
     scan.setMaxVersions(hcd.getMaxVersions());
     long timeToPurgeDeletes = Math.max(conf.getLong("hbase.hstore.time.to.purge.deletes", 0), 0);
     long ttl = HStore.determineTTLFromFamily(hcd);
-    ScanInfo scanInfo = new ScanInfo(hcd, ttl, timeToPurgeDeletes, KeyValue.COMPARATOR);
+    ScanInfo scanInfo = new ScanInfo(conf, hcd, ttl, timeToPurgeDeletes, KeyValue.COMPARATOR);
     StoreScanner scanner = new StoreScanner(scan, scanInfo, ScanType.COMPACT_RETAIN_DELETES, null,
         scanners, 0L, HConstants.LATEST_TIMESTAMP);
     List<Cell> results = new ArrayList<>();
