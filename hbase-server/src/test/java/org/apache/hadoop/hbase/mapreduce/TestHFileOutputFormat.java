@@ -389,8 +389,8 @@ public class TestHFileOutputFormat  {
     byte[][] splitKeys = generateRandomSplitKeys(4);
     HBaseAdmin admin = null;
     try {
-      util.setJobWithoutMRCluster();
       util.startMiniCluster();
+      util.startMiniMapReduceCluster();
       Path testDir = util.getDataTestDirOnTestFS("testLocalMRIncrementalLoad");
       admin = util.getHBaseAdmin();
       HTable table = util.createTable(TABLE_NAME, FAMILIES, splitKeys);
@@ -471,6 +471,7 @@ public class TestHFileOutputFormat  {
           tableDigestBefore, util.checksumRows(table));
     } finally {
       if (admin != null) admin.close();
+      util.shutdownMiniMapReduceCluster();
       util.shutdownMiniCluster();
     }
   }
