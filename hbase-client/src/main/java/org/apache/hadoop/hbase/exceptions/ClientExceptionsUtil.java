@@ -44,7 +44,8 @@ public final class ClientExceptionsUtil {
     if (cur == null) {
       return true;
     }
-    return !isSpecialException(cur) || (cur instanceof RegionMovedException);
+    return !isSpecialException(cur) || (cur instanceof RegionMovedException)
+        || cur instanceof NotServingRegionException;
   }
 
   public static boolean isSpecialException(Throwable cur) {
