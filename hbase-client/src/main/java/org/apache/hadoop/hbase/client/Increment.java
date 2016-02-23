@@ -52,6 +52,9 @@ import org.apache.hadoop.hbase.util.ClassSize;
 @InterfaceStability.Stable
 public class Increment extends Mutation implements Comparable<Row> {
   private static final long HEAP_OVERHEAD =  ClassSize.REFERENCE + ClassSize.TIMERANGE;
+
+  private static final String RETURN_RESULTS = "_rr_";
+
   private TimeRange tr = new TimeRange();
 
   /**
@@ -167,16 +170,16 @@ public class Increment extends Mutation implements Comparable<Row> {
    *          to false.
    */
   public Increment setReturnResults(boolean returnResults) {
-    super.setReturnResults(returnResults);
+    setAttribute(RETURN_RESULTS, Bytes.toBytes(returnResults));
     return this;
   }
 
   /**
-   * @return current setting for returnResults
+   * @return current value for returnResults
    */
-  // This method makes public the superclasses's protected method.
   public boolean isReturnResults() {
-    return super.isReturnResults();
+    byte[] v = getAttribute(RETURN_RESULTS);
+    return v == null ? true : Bytes.toBoolean(v);
   }
 
   /**
