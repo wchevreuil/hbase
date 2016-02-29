@@ -42,6 +42,7 @@ import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.UnknownRegionException;
 import org.apache.hadoop.hbase.MetaTableAccessor;
+import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.errorhandling.ForeignException;
 import org.apache.hadoop.hbase.exceptions.MergeRegionException;
 import org.apache.hadoop.hbase.exceptions.UnknownProtocolException;
@@ -1477,6 +1478,38 @@ public class MasterRpcServices extends RSRpcServices
   }
 
   @Override
+  public MasterProtos.SetSplitOrMergeEnabledResponse setSplitOrMergeEnabled(
+    RpcController controller,
+    MasterProtos.SetSplitOrMergeEnabledRequest request) throws ServiceException {
+    MasterProtos.SetSplitOrMergeEnabledResponse.Builder response =
+            MasterProtos.SetSplitOrMergeEnabledResponse.newBuilder();
+    try {
+      master.checkInitialized();
+      boolean newValue = request.getEnabled();
+      for (MasterProtos.MasterSwitchType masterSwitchType : request.getSwitchTypesList()) {
+        Admin.MasterSwitchType switchType = convert(masterSwitchType);
+        boolean oldValue = master.isSplitOrMergeEnabled(switchType);
+        master.getSplitOrMergeTracker().setSplitOrMergeEnabled(newValue, switchType);
+        response.addPrevValue(oldValue);
+      }
+    } catch (IOException e) {
+      throw new ServiceException(e);
+    } catch (KeeperException e) {
+      throw new ServiceException(e);
+    }
+    return response.build();
+  }
+
+  @Override
+  public MasterProtos.IsSplitOrMergeEnabledResponse isSplitOrMergeEnabled(RpcController controller,
+    MasterProtos.IsSplitOrMergeEnabledRequest request) throws ServiceException {
+    MasterProtos.IsSplitOrMergeEnabledResponse.Builder response =
+            MasterProtos.IsSplitOrMergeEnabledResponse.newBuilder();
+    response.setEnabled(master.isSplitOrMergeEnabled(convert(request.getSwitchType())));
+    return response.build();
+  }
+
+  @Override
   public NormalizeResponse normalize(RpcController controller,
       NormalizeRequest request) throws ServiceException {
     try {
@@ -1659,5 +1692,17 @@ public class MasterRpcServices extends RSRpcServices
       master.getFileSystem(), tableName, compactedColumns,
       master.getTableLockManager(), isForceAllFiles);
     return CompactRegionResponse.newBuilder().build();
+  }
+
+  private Admin.MasterSwitchType convert(MasterProtos.MasterSwitchType switchType) {
+    switch (switchType) {
+      case SPLIT:
+        return Admin.MasterSwitchType.SPLIT;
+      case MERGE:
+        return Admin.MasterSwitchType.MERGE;
+      default:
+        break;
+    }
+    return null;
   }
 }

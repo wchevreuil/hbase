@@ -84,6 +84,7 @@ import org.apache.hadoop.hbase.TableNotDisabledException;
 import org.apache.hadoop.hbase.TableNotFoundException;
 import org.apache.hadoop.hbase.UnknownRegionException;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.MetaScanner;
 import org.apache.hadoop.hbase.client.MetaScanner.MetaScannerVisitor;
 import org.apache.hadoop.hbase.client.MetaScanner.MetaScannerVisitorBase;
@@ -165,6 +166,7 @@ import org.apache.hadoop.hbase.zookeeper.MasterAddressTracker;
 import org.apache.hadoop.hbase.zookeeper.MetaTableLocator;
 import org.apache.hadoop.hbase.zookeeper.RegionNormalizerTracker;
 import org.apache.hadoop.hbase.zookeeper.RegionServerTracker;
+import org.apache.hadoop.hbase.zookeeper.SplitOrMergeTracker;
 import org.apache.hadoop.hbase.zookeeper.ZKClusterId;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
@@ -258,6 +260,9 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
   private DrainingServerTracker drainingServerTracker;
   // Tracker for load balancer state
   LoadBalancerTracker loadBalancerTracker;
+
+  // Tracker for split and merge state
+  private SplitOrMergeTracker splitOrMergeTracker;
 
   // Tracker for region normalizer state
   private RegionNormalizerTracker regionNormalizerTracker;
@@ -630,8 +635,13 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     this.normalizer.setMasterServices(this);
     this.loadBalancerTracker = new LoadBalancerTracker(zooKeeper, this);
     this.loadBalancerTracker.start();
+
     this.regionNormalizerTracker = new RegionNormalizerTracker(zooKeeper, this);
     this.regionNormalizerTracker.start();
+
+    this.splitOrMergeTracker = new SplitOrMergeTracker(zooKeeper, conf, this);
+    this.splitOrMergeTracker.start();
+
     this.assignmentManager = new AssignmentManager(this, serverManager,
       this.balancer, this.service, this.metricsMaster,
       this.tableLockManager);
@@ -2840,6 +2850,20 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     return regionNormalizerTracker.isNormalizerOn();
   }
 
+
+  /**
+   * Queries the state of the {@link SplitOrMergeTracker}. If it is not initialized,
+   * false is returned. If switchType is illegal, false will return.
+   * @param switchType see {@link org.apache.hadoop.hbase.client.Admin.MasterSwitchType}
+   * @return The state of the switch
+   */
+  public boolean isSplitOrMergeEnabled(Admin.MasterSwitchType switchType) {
+    if (null == splitOrMergeTracker) {
+      return false;
+    }
+    return splitOrMergeTracker.isSplitOrMergeEnabled(switchType);
+  }
+
   /**
    * Fetch the configured {@link LoadBalancer} class name. If none is set, a default is returned.
    *
@@ -2913,5 +2937,9 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
   @Override
   public LoadBalancer getLoadBalancer() {
     return balancer;
+  }
+
+  public SplitOrMergeTracker getSplitOrMergeTracker() {
+    return splitOrMergeTracker;
   }
 }

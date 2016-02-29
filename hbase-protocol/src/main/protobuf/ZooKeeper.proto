@@ -179,4 +179,3 @@ message TableLock {
 message SwitchState {
   optional bool enabled = 1;
 }
-

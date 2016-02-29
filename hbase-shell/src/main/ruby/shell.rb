@@ -339,6 +339,8 @@ Shell.load_command_group(
     trace
     compact_mob
     major_compact_mob
+    splitormerge_switch
+    splitormerge_enabled
   ],
   # TODO remove older hlog_roll command
   :aliases => {
