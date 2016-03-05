@@ -1377,7 +1377,7 @@ class ConnectionManager {
                 // Check the cache again for a hit in case some other thread made the
                 // same query while we were waiting on the lock.
                 RegionLocations locations = getCachedLocation(tableName, row);
-                if (locations != null) {
+                if (locations != null && locations.getRegionLocation(replicaId) != null) {
                   return locations;
                 }
                 // If the parent table is META, we may want to pre-fetch some
@@ -1385,7 +1385,7 @@ class ConnectionManager {
                 prefetchRegionCache(tableName, row);
               }
               RegionLocations locations = getCachedLocation(tableName, row);
-              if (locations != null) {
+              if (locations != null && locations.getRegionLocation(replicaId) != null) {
                 return locations;
               }
             } else {
