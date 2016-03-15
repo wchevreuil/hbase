@@ -49,6 +49,7 @@ public class MetricsRegionSourceImpl implements MetricsRegionSource {
   private final String regionPutKey;
   private final String regionDeleteKey;
   private final String regionGetKey;
+  private final String regionGetTimeKey;
   private final String regionIncrementKey;
   private final String regionAppendKey;
   private final String regionScanSizeKey;
@@ -59,6 +60,7 @@ public class MetricsRegionSourceImpl implements MetricsRegionSource {
   private final MutableFastCounter regionIncrement;
   private final MutableFastCounter regionAppend;
   private final MetricHistogram regionGet;
+  private final MetricHistogram regionGetTime;
   private final MetricHistogram regionScanSize;
   private final MetricHistogram regionScanTime;
   private final int hashCode;
@@ -94,7 +96,10 @@ public class MetricsRegionSourceImpl implements MetricsRegionSource {
     regionAppend = registry.getCounter(regionAppendKey, 0L);
 
     regionGetKey = regionNamePrefix + MetricsRegionServerSource.GET_KEY;
-    regionGet = registry.newTimeHistogram(regionGetKey);
+    regionGet = registry.newSizeHistogram(regionGetKey);
+
+    regionGetTimeKey = regionNamePrefix + MetricsRegionServerSource.GET_TIME_KEY;
+    regionGetTime = registry.newTimeHistogram(regionGetTimeKey);
 
     regionScanSizeKey = regionNamePrefix + MetricsRegionServerSource.SCAN_SIZE_KEY;
     regionScanSize = registry.newSizeHistogram(regionScanSizeKey);
@@ -130,9 +135,11 @@ public class MetricsRegionSourceImpl implements MetricsRegionSource {
       registry.removeMetric(regionIncrementKey);
       registry.removeMetric(regionAppendKey);
       registry.removeMetric(regionGetKey);
+      registry.removeMetric(regionGetTimeKey);
       registry.removeMetric(regionScanSizeKey);
       registry.removeMetric(regionScanTimeKey);
       registry.removeHistogramMetrics(regionGetKey);
+      registry.removeHistogramMetrics(regionGetTimeKey);
       registry.removeHistogramMetrics(regionScanSizeKey);
       registry.removeHistogramMetrics(regionScanTimeKey);
 
@@ -153,6 +160,11 @@ public class MetricsRegionSourceImpl implements MetricsRegionSource {
   @Override
   public void updateGet(long getSize) {
     regionGet.add(getSize);
+  }
+
+  @Override
+  public void updateGetTime(long mills) {
+    regionGetTime.add(mills);
   }
 
   @Override

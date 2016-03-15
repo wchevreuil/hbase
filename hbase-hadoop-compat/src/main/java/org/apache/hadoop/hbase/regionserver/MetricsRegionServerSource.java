@@ -275,6 +275,7 @@ public interface MetricsRegionServerSource extends BaseSource, JvmPauseMonitorSo
       "Number of MS updates have been blocked so that the memstore can be flushed.";
   String DELETE_KEY = "delete";
   String GET_KEY = "get";
+  String GET_TIME_KEY = "getTime";
   String INCREMENT_KEY = "increment";
   String MUTATE_KEY = "mutate";
   String APPEND_KEY = "append";
