@@ -206,7 +206,6 @@ module Hbase
       @replication_admin.get_peer_config(id)
     end
     
-    
     def peer_added(id)
       @replication_admin.peer_added(id)
     end

@@ -220,11 +220,9 @@ module Hbase
     define_test "get_peer_config: works with replicationendpointimpl peer and config params" do
       repl_impl = "org.apache.hadoop.hbase.replication.ReplicationEndpointForTest"
       config_params = { "config1" => "value1", "config2" => "value2" }
-      args = { CLUSTER_KEY => cluster_key, ENDPOINT_CLASSNAME => repl_impl,
-               CONFIG => config_params }
+      args = { ENDPOINT_CLASSNAME => repl_impl, CONFIG => config_params}
       replication_admin.add_peer(@peer_id, args)
       peer_config = replication_admin.get_peer_config(@peer_id)
-      assert_equal(cluster_key, peer_config.get_cluster_key)
       assert_equal(repl_impl, peer_config.get_replication_endpoint_impl)
       assert_equal(2, peer_config.get_configuration.size)
       assert_equal("value1", peer_config.get_configuration.get("config1"))
@@ -250,31 +248,6 @@ module Hbase
       #cleanup
       replication_admin.remove_peer(@peer_id)
       replication_admin.remove_peer(peer_id_second)
-    end
-
-    define_test "update_peer_config: can update peer config and data" do
-      repl_impl = "org.apache.hadoop.hbase.replication.ReplicationEndpointForTest"
-      config_params = { "config1" => "value1", "config2" => "value2" }
-      data_params = {"data1" => "value1", "data2" => "value2"}
-      args = { ENDPOINT_CLASSNAME => repl_impl, CONFIG => config_params, DATA => data_params}
-      replication_admin.add_peer(@peer_id, args)
-
-      #Normally the ReplicationSourceManager will call ReplicationPeer#peer_added, but here we have to do it ourselves
-      replication_admin.peer_added(@peer_id)
-
-      new_config_params = { "config1" => "new_value1" }
-      new_data_params = {"data1" => "new_value1"}
-      new_args = {CONFIG => new_config_params, DATA => new_data_params}
-      replication_admin.update_peer_config(@peer_id, new_args)
-
-      #Make sure the updated key/value pairs in config and data were successfully updated, and that those we didn't
-      #update are still there and unchanged
-      peer_config = replication_admin.get_peer_config(@peer_id)
-      replication_admin.remove_peer(@peer_id)
-      assert_equal("new_value1", peer_config.get_configuration.get("config1"))
-      assert_equal("value2", peer_config.get_configuration.get("config2"))
-      assert_equal("new_value1", Bytes.to_string(peer_config.get_peer_data.get(Bytes.toBytes("data1"))))
-      assert_equal("value2", Bytes.to_string(peer_config.get_peer_data.get(Bytes.toBytes("data2"))))
     end
 
     # assert_raise fails on native exceptions - https://jira.codehaus.org/browse/JRUBY-5279
