@@ -52,19 +52,18 @@ import org.apache.hadoop.hbase.HBaseTestingUtility;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HTableDescriptor;
-import org.apache.hadoop.hbase.security.User;
-import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.io.hfile.HFileScanner;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionContext;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequest;
-import org.apache.hadoop.hbase.regionserver.compactions.DefaultCompactor;
-import org.apache.hadoop.hbase.regionserver.compactions.NoLimitCompactionThroughputController;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputController;
 import org.apache.hadoop.hbase.regionserver.compactions.CompactionThroughputControllerFactory;
-import org.apache.hadoop.hbase.wal.WAL;
+import org.apache.hadoop.hbase.regionserver.compactions.DefaultCompactor;
+import org.apache.hadoop.hbase.regionserver.compactions.NoLimitCompactionThroughputController;
+import org.apache.hadoop.hbase.security.User;
+import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.Threads;
@@ -90,7 +89,7 @@ public class TestCompaction {
   private static final Log LOG = LogFactory.getLog(TestCompaction.class.getName());
   private static final HBaseTestingUtility UTIL = HBaseTestingUtility.createLocalHTU();
   protected Configuration conf = UTIL.getConfiguration();
-  
+
   private HRegion r = null;
   private HTableDescriptor htd = null;
   private static final byte [] COLUMN_FAMILY = fam1;
@@ -172,6 +171,7 @@ public class TestCompaction {
 
       HRegion spyR = spy(r);
       doAnswer(new Answer() {
+        @Override
         public Object answer(InvocationOnMock invocation) throws Throwable {
           r.writestate.writesEnabled = false;
           return invocation.callRealMethod();
@@ -377,12 +377,6 @@ public class TestCompaction {
       }
 
       @Override
-      public List<Path> compact(CompactionThroughputController throughputController)
-          throws IOException {
-        return compact(throughputController, null);
-      }
-
-      @Override
       public List<Path> compact(CompactionThroughputController throughputController, User user)
           throws IOException {
         finishCompaction(this.selectedFiles);
@@ -435,12 +429,6 @@ public class TestCompaction {
       }
 
       @Override
-      public List<Path> compact(CompactionThroughputController throughputController)
-          throws IOException {
-        return compact(throughputController, null);
-      }
-
-      @Override
       public List<Path> compact(CompactionThroughputController throughputController, User user)
           throws IOException {
         try {
@@ -481,6 +469,7 @@ public class TestCompaction {
     @Override
     public void cancelCompaction(Object object) {}
 
+    @Override
     public int getPriority() {
       return Integer.MIN_VALUE; // some invalid value, see createStoreMock
     }
@@ -525,9 +514,10 @@ public class TestCompaction {
     when(
       r.compact(any(CompactionContext.class), any(Store.class),
         any(CompactionThroughputController.class), any(User.class))).then(new Answer<Boolean>() {
+      @Override
       public Boolean answer(InvocationOnMock invocation) throws Throwable {
         invocation.getArgumentAt(0, CompactionContext.class).compact(
-          invocation.getArgumentAt(2, CompactionThroughputController.class));
+          invocation.getArgumentAt(2, CompactionThroughputController.class), null);
         return true;
       }
     });

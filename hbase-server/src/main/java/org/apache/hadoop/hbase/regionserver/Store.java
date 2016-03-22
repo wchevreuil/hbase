@@ -105,7 +105,7 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
     byte[] stopRow,
     long readPt
   ) throws IOException;
-  
+
   ScanInfo getScanInfo();
 
   /**
@@ -407,6 +407,11 @@ public interface Store extends HeapSize, StoreConfigInformation, PropagatingConf
    * @return The total size of data flushed to disk, in bytes
    */
   long getFlushedCellsSize();
+
+  /**
+   * @return The total size of out output files on disk, in bytes
+   */
+  long getFlushedOutputFileSize();
 
   /**
    * @return The number of cells processed during minor compactions

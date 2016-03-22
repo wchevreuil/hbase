@@ -225,9 +225,14 @@ public interface RegionServerServices extends OnlineRegions, FavoredNodesForRegi
    * @see org.apache.hadoop.hbase.regionserver.Store#getCompactionPressure()
    */
   double getCompactionPressure();
-  
+
   /**
    * @return all the online tables in this RS
    */
   Set<TableName> getOnlineTables();
+
+  /**
+   * @return the metrics tracker for the region server
+   */
+  MetricsRegionServer getMetrics();
 }

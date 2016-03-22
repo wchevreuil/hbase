@@ -120,12 +120,6 @@ public class DefaultStoreEngine extends StoreEngine<
     }
 
     @Override
-    public List<Path> compact(CompactionThroughputController throughputController)
-        throws IOException {
-      return compact(throughputController, null);
-    }
-
-    @Override
     public List<Path> compact(CompactionThroughputController throughputController, User user)
         throws IOException {
       return compactor.compact(request, throughputController, user);

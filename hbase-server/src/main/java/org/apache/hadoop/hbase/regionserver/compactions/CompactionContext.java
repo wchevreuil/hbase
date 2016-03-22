@@ -65,13 +65,6 @@ public abstract class CompactionContext {
     this.request = request;
   }
 
-  /**
-   * Runs the compaction based on current selection. select/forceSelect must have been called.
-   * @return The new file paths resulting from compaction.
-   */
-  public abstract List<Path> compact(CompactionThroughputController throughputController)
-      throws IOException;
-
   public abstract List<Path> compact(CompactionThroughputController throughputController, User user)
       throws IOException;
 
