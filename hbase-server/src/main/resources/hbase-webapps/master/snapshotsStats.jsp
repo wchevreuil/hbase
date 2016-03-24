@@ -43,7 +43,7 @@
   Map<Path, Integer> filesMap = null;
 
   List<SnapshotDescription> snapshots = master.isInitialized() ?
-    master.getSnapshotManagerForTesting().getCompletedSnapshots() : null;
+    master.getSnapshotManager().getCompletedSnapshots() : null;
 
   Admin admin = null;
   boolean tableExists = false;
