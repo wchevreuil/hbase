@@ -306,9 +306,11 @@ extends InputFormat<ImmutableBytesWritable, Result> {
             keys.getSecond()[i] : stopRow;
 
         byte[] regionName = location.getRegionInfo().getRegionName();
+        String encodedRegionName = location.getRegionInfo().getEncodedName();
         long regionSize = sizeCalculator.getRegionSize(regionName);
-        TableSplit split = new TableSplit(table.getName(),
-          splitStart, splitStop, regionLocation, regionSize);
+
+        TableSplit split = new TableSplit(table.getName(), scan,
+          splitStart, splitStop, regionLocation, encodedRegionName, regionSize);
         splits.add(split);
         if (LOG.isDebugEnabled()) {
           LOG.debug("getSplits: split -> " + i + " -> " + split);
@@ -391,6 +393,7 @@ extends InputFormat<ImmutableBytesWritable, Result> {
     while (count < list.size()) {
       TableSplit ts = (TableSplit)list.get(count);
       String regionLocation = ts.getRegionLocation();
+      String encodedRegionName = ts.getEncodedRegionName();
       long regionSize = ts.getLength();
       if (regionSize >= dataSkewThreshold) {
         // if the current region size is large than the data skew threshold,
@@ -398,10 +401,10 @@ extends InputFormat<ImmutableBytesWritable, Result> {
         byte[] splitKey = getSplitKey(ts.getStartRow(), ts.getEndRow(), isTextKey);
          //Set the size of child TableSplit as 1/2 of the region size. The exact size of the
          // MapReduce input splits is not far off.
-        TableSplit t1 = new TableSplit(table.getName(), ts.getStartRow(), splitKey, regionLocation,
-                regionSize / 2);
-        TableSplit t2 = new TableSplit(table.getName(), splitKey, ts.getEndRow(), regionLocation,
-                regionSize - regionSize / 2);
+        TableSplit t1 = new TableSplit(table.getName(), scan, ts.getStartRow(), splitKey,
+                regionLocation, encodedRegionName, regionSize / 2);
+        TableSplit t2 = new TableSplit(table.getName(), scan, splitKey, ts.getEndRow(),
+                regionLocation, encodedRegionName, regionSize - regionSize / 2);
         resultList.add(t1);
         resultList.add(t2);
         count++;
@@ -427,8 +430,8 @@ extends InputFormat<ImmutableBytesWritable, Result> {
             break;
           }
         }
-        TableSplit t = new TableSplit(table.getName(), splitStartKey, splitEndKey,
-                regionLocation, totalSize);
+        TableSplit t = new TableSplit(table.getName(), scan, splitStartKey, splitEndKey,
+                regionLocation, encodedRegionName, totalSize);
         resultList.add(t);
       }
     }
