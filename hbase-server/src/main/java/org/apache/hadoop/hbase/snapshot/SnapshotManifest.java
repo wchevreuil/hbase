@@ -18,6 +18,9 @@
 
 package org.apache.hadoop.hbase.snapshot;
 
+import com.google.protobuf.CodedInputStream;
+import com.google.protobuf.InvalidProtocolBufferException;
+
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +70,7 @@ import org.apache.hadoop.hbase.util.Threads;
 public class SnapshotManifest {
   private static final Log LOG = LogFactory.getLog(SnapshotManifest.class);
 
-  private static final String DATA_MANIFEST_NAME = "data.manifest";
+  public static final String DATA_MANIFEST_NAME = "data.manifest";
 
   private List<SnapshotRegionManifest> regionManifests;
   private SnapshotDescription desc;
@@ -367,6 +370,9 @@ public class SnapshotManifest {
           try {
             v1Regions = SnapshotManifestV1.loadRegionManifests(conf, tpool, fs, workingDir, desc);
             v2Regions = SnapshotManifestV2.loadRegionManifests(conf, tpool, fs, workingDir, desc);
+          } catch (InvalidProtocolBufferException e) {
+            throw new CorruptedSnapshotException("unable to parse region manifest " +
+                e.getMessage(), e);
           } finally {
             tpool.shutdown();
           }
@@ -518,6 +524,8 @@ public class SnapshotManifest {
       return SnapshotDataManifest.parseFrom(in);
     } catch (FileNotFoundException e) {
       return null;
+    } catch (InvalidProtocolBufferException e) {
+      throw new CorruptedSnapshotException("unable to parse data manifest " + e.getMessage(), e);
     } finally {
       if (in != null) in.close();
     }
