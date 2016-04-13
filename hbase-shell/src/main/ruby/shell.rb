@@ -359,6 +359,9 @@ Shell.load_command_group(
     remove_peer_tableCFs
     enable_table_replication
     disable_table_replication
+    get_peer_config
+    list_peer_configs
+    update_peer_config
   ]
 )
 
