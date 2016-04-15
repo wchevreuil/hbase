@@ -554,6 +554,9 @@ public class HRegionServer extends HasThread implements
       HConstants.ZK_CLIENT_KERBEROS_PRINCIPAL, hostName);
     // login the server principal (if using secure Hadoop)
     login(userProvider, hostName);
+    // init superusers and add the server principal (if using security)
+    // or process owner as default super user.
+    Superusers.initialize(conf);
 
     regionServerAccounting = new RegionServerAccounting();
 
