@@ -140,9 +140,12 @@ public class StoreFileScanner implements KeyValueScanner {
     List<StoreFileScanner> scanners = new ArrayList<StoreFileScanner>(
         files.size());
     List<StoreFile> sorted_files = new ArrayList<>(files);
+    for (int i = 0; i < sorted_files.size(); i++) {
+      sorted_files.get(i).createReader(canUseDrop);
+    }
     Collections.sort(sorted_files, StoreFile.Comparators.SEQ_ID);
     for (int i = 0; i < sorted_files.size(); i++) {
-      StoreFile.Reader r = sorted_files.get(i).createReader(canUseDrop);
+      StoreFile.Reader r = sorted_files.get(i).getReader();
       r.setReplicaStoreFile(isPrimaryReplica);
       StoreFileScanner scanner = r.getStoreFileScanner(cacheBlocks, usePread,
           isCompaction, readPt, i);
