@@ -505,7 +505,6 @@ public class HRegionServer extends HasThread implements
     this.conf = conf;
     checkCodecs(this.conf);
     this.userProvider = UserProvider.instantiate(conf);
-    Superusers.initialize(conf);
     FSUtils.setupShortCircuitRead(this.conf);
     // Disable usage of meta replicas in the regionserver
     this.conf.setBoolean(HConstants.USE_META_REPLICAS, false);
