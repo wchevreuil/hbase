@@ -722,7 +722,7 @@ public class SnapshotManager extends MasterProcedureManager implements Stoppable
 
       // call coproc pre hook
       if (cpHost != null) {
-        cpHost.preRestoreSnapshot(reqSnapshot, snapshotTableDesc);
+        cpHost.preRestoreSnapshot(snapshot, snapshotTableDesc);
       }
       try {
         // Table already exist. Check and update the region quota for this table namespace
@@ -737,12 +737,12 @@ public class SnapshotManager extends MasterProcedureManager implements Stoppable
       LOG.info("Restore snapshot=" + snapshot.getName() + " as table=" + tableName);
 
       if (cpHost != null) {
-        cpHost.postRestoreSnapshot(reqSnapshot, snapshotTableDesc);
+        cpHost.postRestoreSnapshot(snapshot, snapshotTableDesc);
       }
     } else {
       HTableDescriptor htd = new HTableDescriptor(tableName, snapshotTableDesc);
       if (cpHost != null) {
-        cpHost.preCloneSnapshot(reqSnapshot, htd);
+        cpHost.preCloneSnapshot(snapshot, htd);
       }
       try {
         checkAndUpdateNamespaceQuota(manifest, tableName);
@@ -756,7 +756,7 @@ public class SnapshotManager extends MasterProcedureManager implements Stoppable
       LOG.info("Clone snapshot=" + snapshot.getName() + " as table=" + tableName);
 
       if (cpHost != null) {
-        cpHost.postCloneSnapshot(reqSnapshot, htd);
+        cpHost.postCloneSnapshot(snapshot, htd);
       }
     }
   }
