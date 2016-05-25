@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -249,7 +250,7 @@ public class AsyncRpcChannel {
       final Bootstrap bootstrap) throws IOException {
     return new SaslClientHandler(realTicket, authMethod, token, serverPrincipal,
         client.fallbackAllowed, client.conf.get("hbase.rpc.protection",
-          SaslUtil.QualityOfProtection.AUTHENTICATION.name().toLowerCase()),
+          SaslUtil.QualityOfProtection.AUTHENTICATION.name().toLowerCase(Locale.ROOT)),
         new SaslClientHandler.SaslExceptionHandler() {
           @Override
           public void handle(int retryCount, Random random, Throwable cause) {
@@ -460,7 +461,7 @@ public class AsyncRpcChannel {
         throw new IOException("Can't obtain server Kerberos config key from SecurityInfo");
       }
       this.serverPrincipal = SecurityUtil.getServerPrincipal(client.conf.get(serverKey),
-          address.getAddress().getCanonicalHostName().toLowerCase());
+          address.getAddress().getCanonicalHostName().toLowerCase(Locale.ROOT));
       if (LOG.isDebugEnabled()) {
         LOG.debug("RPC Server Kerberos principal name for service=" + serviceName + " is "
             + serverPrincipal);

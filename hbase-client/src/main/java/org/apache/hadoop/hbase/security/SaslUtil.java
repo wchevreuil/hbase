@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.security;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 

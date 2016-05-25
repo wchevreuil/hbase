@@ -24,6 +24,7 @@ import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
@@ -228,7 +229,7 @@ public class Import {
       filter = instantiateFilter(conf);
       String durabilityStr = conf.get(WAL_DURABILITY);
       if(durabilityStr != null){
-        durability = Durability.valueOf(durabilityStr.toUpperCase());
+        durability = Durability.valueOf(durabilityStr.toUpperCase(Locale.ROOT));
       }
       // TODO: This is kind of ugly doing setup of ZKW just to read the clusterid.
       ZooKeeperWatcher zkw = null;

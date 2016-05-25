@@ -26,6 +26,7 @@ import java.net.SocketTimeoutException;
 import java.rmi.UnknownHostException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -402,7 +403,7 @@ public class MetaTableLocator {
       } else if (cause != null && cause instanceof EOFException) {
         // Catch. Other end disconnected us.
       } else if (cause != null && cause.getMessage() != null &&
-        cause.getMessage().toLowerCase().contains("connection reset")) {
+        cause.getMessage().toLowerCase(Locale.ROOT).contains("connection reset")) {
         // Catch. Connection reset.
       } else {
         throw ioe;
