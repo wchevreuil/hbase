@@ -760,6 +760,8 @@
               <exclude>**/*.versionsBackup</exclude>
               <exclude>**/*.log</exclude>
               <exclude>**/.*</exclude>
+              <!-- Also exclude hidden directories. -->
+              <exclude>**/.*/*</exclude>
               <exclude>**/*.tgz</exclude>
               <exclude>**/*.orig</exclude>
               <exclude>**/8e8ab58dcf39412da19833fcd8f687ac</exclude>
