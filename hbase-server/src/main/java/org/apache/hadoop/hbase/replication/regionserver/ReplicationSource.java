@@ -987,16 +987,22 @@ public class ReplicationSource extends Thread
         } catch (IOException exception) {
           LOG.warn("Couldn't get file length information about log " + this.currentPath + ", it " + (trailerSize < 0 ? "was not" : "was") + " closed cleanly"
               + ", stats: " + getStats());
+          metrics.incrUnknownFileLengthForClosedWAL();
         }
         if (stat != null) {
           if (trailerSize < 0) {
             if (currentPosition < stat.getLen()) {
-              LOG.info("Reached the end of WAL file '" + currentPath + "'. It was not closed cleanly, so we did not parse " + (stat.getLen() - currentPosition) + " bytes of data.");
+              final long skippedBytes = stat.getLen() - currentPosition;
+              LOG.info("Reached the end of WAL file '" + currentPath + "'. It was not closed cleanly, so we did not parse " + skippedBytes + " bytes of data.");
+              metrics.incrUncleanlyClosedWALs();
+              metrics.incrBytesSkippedInUncleanlyClosedWALs(skippedBytes);
             }
           } else if (currentPosition + trailerSize < stat.getLen()){
             LOG.warn("Processing end of WAL file '" + currentPath + "'. At position " + currentPosition + ", which is too far away from reported file length " + stat.getLen() +
-                ". Restarting WAL reading (see CDH-38113 / case #87596 for details). stats: " + getStats());
+                ". Restarting WAL reading (see HBASE-15983 for details). stats: " + getStats());
             repLogReader.setPosition(0);
+            metrics.incrRestartedWALReading();
+            metrics.incrRepeatedFileBytes(currentPosition);
             return false;
           }
         }
@@ -1007,10 +1013,12 @@ public class ReplicationSource extends Thread
         this.currentPath = null;
         this.repLogReader.finishCurrentFile();
         this.reader = null;
+        metrics.incrCompletedWAL();
         return true;
       } else if (this.replicationQueueInfo.isQueueRecovered()) {
         LOG.debug("Finished recovering queue for group " + walGroupId + " of peer "
             + peerClusterZnode);
+        metrics.incrCompletedRecoveryQueue();
         workerRunning = false;
         return true;
       }

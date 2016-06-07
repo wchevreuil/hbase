@@ -31,6 +31,7 @@ public class MetricsReplicationSourceSourceImpl implements MetricsReplicationSou
   private final String shippedBatchesKey;
   private final String shippedOpsKey;
   private final String shippedKBsKey;
+  private String keyPrefix;
   private final String logReadInBytesKey;
 
   private final MutableGaugeLong ageOfLastShippedOpGauge;
@@ -42,9 +43,25 @@ public class MetricsReplicationSourceSourceImpl implements MetricsReplicationSou
   private final MutableFastCounter shippedKBsCounter;
   private final MutableFastCounter logReadInBytesCounter;
 
+  private final String unknownFileLengthKey;
+  private final String uncleanlyClosedKey;
+  private final String uncleanlySkippedBytesKey;
+  private final String restartedKey;
+  private final String repeatedBytesKey;
+  private final String completedLogsKey;
+  private final String completedRecoveryKey;
+  private final MutableFastCounter unknownFileLengthForClosedWAL;
+  private final MutableFastCounter uncleanlyClosedWAL;
+  private final MutableFastCounter uncleanlyClosedSkippedBytes;
+  private final MutableFastCounter restartWALReading;
+  private final MutableFastCounter repeatedFileBytes;
+  private final MutableFastCounter completedWAL;
+  private final MutableFastCounter completedRecoveryQueue;
+
   public MetricsReplicationSourceSourceImpl(MetricsReplicationSourceImpl rms, String id) {
     this.rms = rms;
     this.id = id;
+    this.keyPrefix = "source." + this.id + ".";
 
     ageOfLastShippedOpKey = "source." + id + ".ageOfLastShippedOp";
     ageOfLastShippedOpGauge = rms.getMetricsRegistry().getGauge(ageOfLastShippedOpKey, 0L);
@@ -70,6 +87,26 @@ public class MetricsReplicationSourceSourceImpl implements MetricsReplicationSou
     logEditsFilteredKey = "source." + id + ".logEditsFiltered";
     logEditsFilteredCounter = rms.getMetricsRegistry().getCounter(logEditsFilteredKey, 0L);
 
+    unknownFileLengthKey = this.keyPrefix + "closedLogsWithUnknownFileLength";
+    unknownFileLengthForClosedWAL = rms.getMetricsRegistry().getCounter(unknownFileLengthKey, 0L);
+
+    uncleanlyClosedKey = this.keyPrefix + "uncleanlyClosedLogs";
+    uncleanlyClosedWAL = rms.getMetricsRegistry().getCounter(uncleanlyClosedKey, 0L);
+
+    uncleanlySkippedBytesKey = this.keyPrefix + "ignoredUncleanlyClosedLogContentsInBytes";
+    uncleanlyClosedSkippedBytes = rms.getMetricsRegistry().getCounter(uncleanlySkippedBytesKey, 0L);
+
+    restartedKey = this.keyPrefix + "restartedLogReading";
+    restartWALReading = rms.getMetricsRegistry().getCounter(restartedKey, 0L);
+
+    repeatedBytesKey = this.keyPrefix + "repeatedLogFileBytes";
+    repeatedFileBytes = rms.getMetricsRegistry().getCounter(repeatedBytesKey, 0L);
+
+    completedLogsKey = this.keyPrefix + "completedLogs";
+    completedWAL = rms.getMetricsRegistry().getCounter(completedLogsKey, 0L);
+
+    completedRecoveryKey = this.keyPrefix + "completedRecoverQueues";
+    completedRecoveryQueue = rms.getMetricsRegistry().getCounter(completedRecoveryKey, 0L);
   }
 
   @Override public void setLastShippedAge(long age) {
@@ -125,10 +162,53 @@ public class MetricsReplicationSourceSourceImpl implements MetricsReplicationSou
     rms.removeMetric(logReadInEditsKey);
 
     rms.removeMetric(logEditsFilteredKey);
+
+    rms.removeMetric(unknownFileLengthKey);
+    rms.removeMetric(uncleanlyClosedKey);
+    rms.removeMetric(uncleanlySkippedBytesKey);
+    rms.removeMetric(restartedKey);
+    rms.removeMetric(repeatedBytesKey);
+    rms.removeMetric(completedLogsKey);
+    rms.removeMetric(completedRecoveryKey);
   }
 
   @Override
   public long getLastShippedAge() {
     return ageOfLastShippedOpGauge.value();
+  }
+
+  @Override
+  public void incrUnknownFileLengthForClosedWAL() {
+    unknownFileLengthForClosedWAL.incr(1L);
+  }
+
+  @Override
+  public void incrUncleanlyClosedWALs() {
+    uncleanlyClosedWAL.incr(1L);
+  }
+
+  @Override
+  public void incrBytesSkippedInUncleanlyClosedWALs(final long bytes) {
+    uncleanlyClosedSkippedBytes.incr(bytes);
+  }
+
+  @Override
+  public void incrRestartedWALReading() {
+    restartWALReading.incr(1L);
+  }
+
+  @Override
+  public void incrRepeatedFileBytes(final long bytes) {
+    repeatedFileBytes.incr(bytes);
+  }
+
+  @Override
+  public void incrCompletedWAL() {
+    completedWAL.incr(1L);
+  }
+
+  @Override
+  public void incrCompletedRecoveryQueue() {
+    completedRecoveryQueue.incr(1L);
   }
 }

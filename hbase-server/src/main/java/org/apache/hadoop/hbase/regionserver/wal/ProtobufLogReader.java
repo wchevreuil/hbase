@@ -327,7 +327,9 @@ public class ProtobufLogReader extends ReaderBase {
       // OriginalPosition might be < 0 on local fs; if so, it is useless to us.
       long originalPosition = this.inputStream.getPos();
       if (trailerPresent && originalPosition > 0 && originalPosition == this.walEditsStopOffset) {
-        LOG.trace("Reached end of expected edits area at offset " + originalPosition);
+        if (LOG.isTraceEnabled()) {
+          LOG.trace("Reached end of expected edits area at offset " + originalPosition);
+        }
         return false;
       }
       WALKey.Builder builder = WALKey.newBuilder();
@@ -363,7 +365,9 @@ public class ProtobufLogReader extends ReaderBase {
         WALKey walKey = builder.build();
         entry.getKey().readFieldsFromPb(walKey, this.byteStringUncompressor);
         if (!walKey.hasFollowingKvCount() || 0 == walKey.getFollowingKvCount()) {
-          LOG.trace("WALKey has no KVs that follow it; trying the next one. current offset=" + this.inputStream.getPos());
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("WALKey has no KVs that follow it; trying the next one. current offset=" + this.inputStream.getPos());
+          }
           continue;
         }
         int expectedCells = walKey.getFollowingKvCount();
@@ -378,7 +382,9 @@ public class ProtobufLogReader extends ReaderBase {
           try {
             posAfterStr = this.inputStream.getPos() + "";
           } catch (Throwable t) {
-            LOG.trace("Error getting pos for error message - ignoring", t);
+            if (LOG.isTraceEnabled()) {
+              LOG.trace("Error getting pos for error message - ignoring", t);
+            }
           }
           String message = " while reading " + expectedCells + " WAL KVs; started reading at "
               + posBefore + " and read up to " + posAfterStr;
@@ -395,12 +401,16 @@ public class ProtobufLogReader extends ReaderBase {
       } catch (EOFException eof) {
         // If originalPosition is < 0, it is rubbish and we cannot use it (probably local fs)
         if (originalPosition < 0) {
-          LOG.trace("Encountered a malformed edit, but can't seek back to last good position because originalPosition is negative. last offset=" + this.inputStream.getPos(), eof);
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Encountered a malformed edit, but can't seek back to last good position because originalPosition is negative. last offset=" + this.inputStream.getPos(), eof);
+          }
           throw eof;
         }
         // Else restore our position to original location in hope that next time through we will
         // read successfully.
-        LOG.trace("Encountered a malformed edit, seeking back to last good position in file, from "+ inputStream.getPos()+" to " + originalPosition, eof);
+        if (LOG.isTraceEnabled()) {
+          LOG.trace("Encountered a malformed edit, seeking back to last good position in file, from "+ inputStream.getPos()+" to " + originalPosition, eof);
+        }
         seekOnFs(originalPosition);
         return false;
       }
