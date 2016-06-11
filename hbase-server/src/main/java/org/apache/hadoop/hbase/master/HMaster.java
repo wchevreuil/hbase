@@ -66,6 +66,7 @@ import org.apache.hadoop.hbase.NamespaceNotFoundException;
 import org.apache.hadoop.hbase.PleaseHoldException;
 import org.apache.hadoop.hbase.ProcedureInfo;
 import org.apache.hadoop.hbase.RegionStateListener;
+import org.apache.hadoop.hbase.ScheduledChore;
 import org.apache.hadoop.hbase.Server;
 import org.apache.hadoop.hbase.ServerLoad;
 import org.apache.hadoop.hbase.ServerName;
@@ -295,6 +296,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
   private RegionNormalizerChore normalizerChore;
   private ClusterStatusChore clusterStatusChore;
   private ClusterStatusPublisher clusterStatusPublisherChore = null;
+  private PeriodicDoMetrics periodicDoMetricsChore = null;
 
   CatalogJanitor catalogJanitorChore;
   private LogCleaner logCleaner;
@@ -351,6 +353,19 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
         + request.getServerName() + ":" + regionServerInfoPort
         + request.getRequestURI();
       response.sendRedirect(redirectUrl);
+    }
+  }
+
+  private static class PeriodicDoMetrics extends ScheduledChore {
+    private final HMaster server;
+    public PeriodicDoMetrics(int doMetricsInterval, final HMaster server) {
+      super(server.getServerName() + "-DoMetricsChore", server, doMetricsInterval);
+      this.server = server;
+    }
+
+    @Override
+    protected void chore() {
+      server.doMetrics();
     }
   }
 
@@ -420,6 +435,10 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
         getChoreService().scheduleChore(clusterStatusPublisherChore);
       }
     }
+
+    // Do Metrics periodically
+    periodicDoMetricsChore = new PeriodicDoMetrics(msgInterval, this);
+    getChoreService().scheduleChore(periodicDoMetricsChore);
 
     // Some unit tests don't need a cluster, so no zookeeper at all
     if (!conf.getBoolean("hbase.testing.nocluster", false)) {
@@ -546,8 +565,7 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
    * Emit the HMaster metrics, such as region in transition metrics.
    * Surrounding in a try block just to be sure metrics doesn't abort HMaster.
    */
-  @Override
-  protected void doMetrics() {
+  private void doMetrics() {
     try {
       if (assignmentManager != null) {
         assignmentManager.updateRegionsInTransitionMetrics();
@@ -1209,6 +1227,9 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
     }
     if (this.mobFileCompactThread != null) {
       this.mobFileCompactThread.close();
+    }
+    if (this.periodicDoMetricsChore != null) {
+      periodicDoMetricsChore.cancel();
     }
   }
 
