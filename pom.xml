@@ -1322,6 +1322,7 @@
     <!-- Do not use versions earlier than 3.2.2 due to a security vulnerability -->
     <collections.version>3.2.2</collections.version>
     <httpclient.version>3.1</httpclient.version>
+    <httpcore.version>4.4.4</httpcore.version>
     <metrics-core.version>2.2.0</metrics-core.version>
     <guava.version>12.0.1</guava.version>
     <jackson.version>${cdh.jackson.version}</jackson.version>
@@ -1352,6 +1353,7 @@
     <jcodings.version>1.0.8</jcodings.version>
     <spy.version>2.11.6</spy.version>
     <bouncycastle.version>1.46</bouncycastle.version>
+    <kerby.version>1.0.0-RC2</kerby.version>
     <!-- Plugin Dependencies -->
     <maven.assembly.version>2.4</maven.assembly.version>
     <maven.antrun.version>1.6</maven.antrun.version>
@@ -1636,6 +1638,11 @@
         <groupId>commons-httpclient</groupId>
         <artifactId>commons-httpclient</artifactId>
         <version>${httpclient.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpcore</artifactId>
+        <version>${httpcore.version}</version>
       </dependency>
       <dependency>
         <groupId>commons-cli</groupId>
@@ -1945,6 +1952,16 @@
            <groupId>junit</groupId>
          </exclusion>
        </exclusions>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.kerby</groupId>
+       <artifactId>kerb-client</artifactId>
+       <version>${kerby.version}</version>
+     </dependency>
+     <dependency>
+       <groupId>org.apache.kerby</groupId>
+       <artifactId>kerb-simplekdc</artifactId>
+       <version>${kerby.version}</version>
      </dependency>
     </dependencies>
   </dependencyManagement>
