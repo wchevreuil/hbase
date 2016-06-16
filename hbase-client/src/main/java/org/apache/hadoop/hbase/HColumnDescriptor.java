@@ -916,9 +916,8 @@ public class HColumnDescriptor implements WritableComparable<HColumnDescriptor> 
    */
   @Deprecated
   public boolean getKeepDeletedCells() {
-    String value = getValue(KEEP_DELETED_CELLS);
-    if (value != null) {
-      KeepDeletedCells kdc = KeepDeletedCells.valueOf(value);
+    final KeepDeletedCells kdc = getKeepDeletedCellsAsEnum();
+    if (kdc != null) {
       switch (kdc) {
         case TRUE:
         case TTL:
