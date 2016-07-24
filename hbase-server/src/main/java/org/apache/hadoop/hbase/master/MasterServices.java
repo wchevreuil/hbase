@@ -291,6 +291,11 @@ public interface MasterServices extends Server {
   public void deleteNamespace(String name) throws IOException;
 
   /**
+   * @return true if master is in maintanceMode
+   */
+  boolean isInMaintenanceMode();
+
+  /**
    * Abort a procedure.
    * @param procId ID of the procedure
    * @param mayInterruptIfRunning if the proc completed at least one step, should it be aborted?
