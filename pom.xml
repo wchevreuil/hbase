@@ -801,6 +801,7 @@
               <exclude>**/ESAPI.properties</exclude>
               <exclude>**/cloudera/**</exclude>
               <exclude>**/debian/**</exclude>
+              <exclude>PATCH.txt</exclude>
             </excludes>
           </configuration>
         </plugin>
