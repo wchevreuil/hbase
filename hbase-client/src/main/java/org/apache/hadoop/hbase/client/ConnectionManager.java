@@ -563,6 +563,7 @@ class ConnectionManager {
     private final int metaReplicaCallTimeoutScanInMicroSecond;
     private final int numTries;
     final int rpcTimeout;
+    final int writeRpcTimeout;
     private NonceGenerator nonceGenerator = null;
     private final boolean usePrefetch;
     private final int prefetchRegionLimit;
@@ -702,6 +703,9 @@ class ConnectionManager {
       this.rpcTimeout = conf.getInt(
           HConstants.HBASE_RPC_TIMEOUT_KEY,
           HConstants.DEFAULT_HBASE_RPC_TIMEOUT);
+      this.writeRpcTimeout = conf.getInt(
+        HConstants.HBASE_RPC_WRITE_TIMEOUT_KEY,
+        HConstants.DEFAULT_HBASE_RPC_TIMEOUT);
       if (conf.getBoolean(CLIENT_NONCES_ENABLED_KEY, true)) {
         synchronized (nonceGeneratorCreateLock) {
           if (ConnectionManager.nonceGenerator == null) {
@@ -2466,7 +2470,7 @@ class ConnectionManager {
       // No default pool available.
       return new AsyncProcess(this, conf, this.batchPool,
           RpcRetryingCallerFactory.instantiate(conf, this.getStatisticsTracker()), false,
-          RpcControllerFactory.instantiate(conf));
+          RpcControllerFactory.instantiate(conf), writeRpcTimeout);
     }
 
     @Override
