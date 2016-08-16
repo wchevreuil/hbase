@@ -46,10 +46,10 @@ public class SimpleRpcScheduler extends RpcScheduler {
   public static final String CALL_QUEUE_HANDLER_FACTOR_CONF_KEY =
       "hbase.ipc.server.callqueue.handler.factor";
 
-  /** If set to 'deadline', uses a priority queue and deprioritize long-running scans */
-  public static final String CALL_QUEUE_TYPE_CONF_KEY = "hbase.ipc.server.callqueue.type";
   public static final String CALL_QUEUE_TYPE_DEADLINE_CONF_VALUE = "deadline";
   public static final String CALL_QUEUE_TYPE_FIFO_CONF_VALUE = "fifo";
+  public static final String CALL_QUEUE_TYPE_CONF_KEY = "hbase.ipc.server.callqueue.type";
+  public static final String CALL_QUEUE_TYPE_CONF_DEFAULT = CALL_QUEUE_TYPE_FIFO_CONF_VALUE;
 
   /** max delay in msec used to bound the deprioritized requests */
   public static final String QUEUE_MAX_CALL_DELAY_CONF_KEY
@@ -118,7 +118,8 @@ public class SimpleRpcScheduler extends RpcScheduler {
     this.highPriorityLevel = highPriorityLevel;
     this.abortable = server;
 
-    String callQueueType = conf.get(CALL_QUEUE_TYPE_CONF_KEY, CALL_QUEUE_TYPE_DEADLINE_CONF_VALUE);
+    String callQueueType = conf.get(CALL_QUEUE_TYPE_CONF_KEY,
+        CALL_QUEUE_TYPE_FIFO_CONF_VALUE);
     float callqReadShare = conf.getFloat(CALL_QUEUE_READ_SHARE_CONF_KEY, 0);
     float callqScanShare = conf.getFloat(CALL_QUEUE_SCAN_SHARE_CONF_KEY, 0);
 
@@ -131,32 +132,38 @@ public class SimpleRpcScheduler extends RpcScheduler {
       // multiple read/write queues
       if (callQueueType.equals(CALL_QUEUE_TYPE_DEADLINE_CONF_VALUE)) {
         CallPriorityComparator callPriority = new CallPriorityComparator(conf, this.priority);
-        callExecutor = new RWQueueRpcExecutor("RW.default", handlerCount, numCallQueues,
+        callExecutor = new RWQueueRpcExecutor("RW.deadline.Q", handlerCount, numCallQueues,
             callqReadShare, callqScanShare, maxQueueLength, conf, abortable,
             BoundedPriorityBlockingQueue.class, callPriority);
       } else {
-        callExecutor = new RWQueueRpcExecutor("RW.default", handlerCount, numCallQueues,
+        callExecutor = new RWQueueRpcExecutor("RW.fifo.Q", handlerCount, numCallQueues,
           callqReadShare, callqScanShare, maxQueueLength, conf, abortable);
       }
     } else {
       // multiple queues
       if (callQueueType.equals(CALL_QUEUE_TYPE_DEADLINE_CONF_VALUE)) {
         CallPriorityComparator callPriority = new CallPriorityComparator(conf, this.priority);
-        callExecutor = new BalancedQueueRpcExecutor("B.default", handlerCount, numCallQueues,
-          conf, abortable, BoundedPriorityBlockingQueue.class, maxQueueLength, callPriority);
+        callExecutor =
+          new BalancedQueueRpcExecutor("BQDeadline.default", handlerCount, numCallQueues,
+            conf, abortable, BoundedPriorityBlockingQueue.class, maxQueueLength, callPriority);
       } else {
-        callExecutor = new BalancedQueueRpcExecutor("B.default", handlerCount,
-            numCallQueues, maxQueueLength, conf, abortable);
+        // FifoWFPBQ = FifoWithFastPathBalancedQueueRpcExecutor
+        callExecutor = new FifoWithFastPathBalancedQueueRpcExecutor("FifoWFPBQ.default",
+            handlerCount, numCallQueues, maxQueueLength, conf, abortable);
       }
     }
 
     // Create 2 queues to help priorityExecutor be more scalable.
-    this.priorityExecutor = priorityHandlerCount > 0 ?
-        new BalancedQueueRpcExecutor("Priority", priorityHandlerCount, 2, maxQueueLength) : null;
+    this.priorityExecutor = priorityHandlerCount > 0?
+      new FifoWithFastPathBalancedQueueRpcExecutor("FifoWFPBQ.priority", priorityHandlerCount,
+        2, maxQueueLength, conf, abortable): null;
+    this.replicationExecutor = replicationHandlerCount > 0?
+      new FifoWithFastPathBalancedQueueRpcExecutor("FifoWFPBQ.replication",
+        replicationHandlerCount, 1, maxQueueLength, conf, abortable) : null;
+  }
 
-   this.replicationExecutor =
-     replicationHandlerCount > 0 ? new BalancedQueueRpcExecutor("Replication",
-       replicationHandlerCount, 1, maxQueueLength, conf, abortable) : null;
+  private static boolean isDeadlineQueueType(final String callQueueType) {
+    return callQueueType.equals(CALL_QUEUE_TYPE_DEADLINE_CONF_VALUE);
   }
 
   public SimpleRpcScheduler(

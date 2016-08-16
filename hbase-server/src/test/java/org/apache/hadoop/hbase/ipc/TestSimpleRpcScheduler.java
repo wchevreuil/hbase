@@ -17,10 +17,6 @@
  */
 package org.apache.hadoop.hbase.ipc;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import com.google.protobuf.Message;
@@ -28,14 +24,13 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.client.Put;
-import org.apache.hadoop.hbase.monitoring.MonitoredRPCHandlerImpl;
-import org.apache.hadoop.hbase.security.User;
-import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.ipc.RpcServer.Call;
 import org.apache.hadoop.hbase.protobuf.RequestConverter;
 import org.apache.hadoop.hbase.protobuf.generated.RPCProtos;
 import org.apache.hadoop.hbase.protobuf.generated.RPCProtos.RequestHeader;
 import org.apache.hadoop.hbase.protobuf.generated.ClientProtos.ScanRequest;
+import org.apache.hadoop.hbase.security.User;
+import org.apache.hadoop.hbase.testclassification.SmallTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.Threads;
 import org.junit.Before;
@@ -62,6 +57,11 @@ import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
+
 @Category(SmallTests.class)
 public class TestSimpleRpcScheduler {
   private static final Log LOG = LogFactory.getLog(TestSimpleRpcScheduler.class);
@@ -87,7 +87,6 @@ public class TestSimpleRpcScheduler {
     scheduler.init(CONTEXT);
     scheduler.start();
     CallRunner task = createMockTask();
-    task.setStatus(new MonitoredRPCHandlerImpl());
     scheduler.dispatch(task);
     verify(task, timeout(1000)).run();
     scheduler.stop();
@@ -122,7 +121,6 @@ public class TestSimpleRpcScheduler {
       }
     };
     for (CallRunner task : tasks) {
-      task.setStatus(new MonitoredRPCHandlerImpl());
       doAnswer(answerToRun).when(task).run();
     }
 
@@ -227,7 +225,7 @@ public class TestSimpleRpcScheduler {
       // -> WITH REORDER [10 10 10 10 10 10 50 100] -> 530 (Deadline Queue)
       if (queueType.equals(SimpleRpcScheduler.CALL_QUEUE_TYPE_DEADLINE_CONF_VALUE)) {
         assertEquals(530, totalTime);
-      } else /* if (queueType.equals(SimpleRpcScheduler.CALL_QUEUE_TYPE_FIFO_CONF_VALUE)) */ {
+      } else if (queueType.equals(SimpleRpcScheduler.CALL_QUEUE_TYPE_FIFO_CONF_VALUE)) {
         assertEquals(930, totalTime);
       }
     } finally {
@@ -305,7 +303,6 @@ public class TestSimpleRpcScheduler {
 
   private void doAnswerTaskExecution(final CallRunner callTask,
       final ArrayList<Integer> results, final int value, final int sleepInterval) {
-    callTask.setStatus(new MonitoredRPCHandlerImpl());
     doAnswer(new Answer<Object>() {
       @Override
       public Object answer(InvocationOnMock invocation) {
