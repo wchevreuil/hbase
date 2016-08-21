@@ -74,6 +74,7 @@ public class VerifyReplication extends Configured implements Tool {
   static int versions = -1;
   static String tableName = null;
   static String families = null;
+  static String delimiter = "";
   static String peerId = null;
 
   /**
@@ -173,7 +174,8 @@ public class VerifyReplication extends Configured implements Tool {
     private void logFailRowAndIncreaseCounter(Context context, Counters counter, Result row) {
       context.getCounter(counter).increment(1);
       context.getCounter(Counters.BADROWS).increment(1);
-      LOG.error(counter.toString() + ", rowkey=" + Bytes.toStringBinary(row.getRow()));
+      LOG.error(counter.toString() + ", rowkey=" + delimiter + Bytes.toStringBinary(row.getRow()) +
+          delimiter);
     }
 
     @Override
@@ -341,6 +343,12 @@ public class VerifyReplication extends Configured implements Tool {
           printUsage("Invalid argument '" + cmd + "'");
         }
 
+        final String delimiterArgKey = "--delimiter=";
+        if (cmd.startsWith(delimiterArgKey)) {
+          delimiter = cmd.substring(delimiterArgKey.length());
+          continue;
+        }
+
         if (i == args.length-2) {
           peerId = cmd;
         }
@@ -365,7 +373,7 @@ public class VerifyReplication extends Configured implements Tool {
       System.err.println("ERROR: " + errorMsg);
     }
     System.err.println("Usage: verifyrep [--starttime=X]" +
-        " [--endtime=Y] [--families=A] <peerid> <tablename>");
+        " [--endtime=Y] [--families=A] [--delimiter=] <peerid> <tablename>");
     System.err.println();
     System.err.println("Options:");
     System.err.println(" starttime    beginning of the time range");
@@ -373,6 +381,7 @@ public class VerifyReplication extends Configured implements Tool {
     System.err.println(" endtime      end of the time range");
     System.err.println(" versions     number of cell versions to verify");
     System.err.println(" families     comma-separated list of families to copy");
+    System.err.println(" delimiter    the delimiter used in display around rowkey");
     System.err.println();
     System.err.println("Args:");
     System.err.println(" peerid       Id of the peer used for verification, must match the one given for replication");
