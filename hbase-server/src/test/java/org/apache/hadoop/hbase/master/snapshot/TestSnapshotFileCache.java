@@ -172,8 +172,9 @@ public class TestSnapshotFileCache {
     SnapshotFileCache cache = new SnapshotFileCache(fs, rootDir, period, 10000000,
         "test-snapshot-file-cache-refresh", new SnapshotFiles()) {
       @Override
-      List<String> getSnapshotsInProgress() throws IOException {
-        List<String> result = super.getSnapshotsInProgress();
+      List<String> getSnapshotsInProgress(final SnapshotManager snapshotManager)
+              throws IOException {
+        List<String> result = super.getSnapshotsInProgress(snapshotManager);
         count.incrementAndGet();
         return result;
       }
@@ -194,7 +195,7 @@ public class TestSnapshotFileCache {
     FSUtils.logFileSystemState(fs, rootDir, LOG);
 
     List<FileStatus> allStoreFiles = getStoreFilesForSnapshot(complete);
-    Iterable<FileStatus> deletableFiles = cache.getUnreferencedFiles(allStoreFiles);
+    Iterable<FileStatus> deletableFiles = cache.getUnreferencedFiles(allStoreFiles, null);
     assertTrue(Iterables.isEmpty(deletableFiles));
     // no need for tmp dir check as all files are accounted for.
     assertEquals(0, count.get() - countBeforeCheck);
@@ -203,7 +204,7 @@ public class TestSnapshotFileCache {
     // add a random file to make sure we refresh
     FileStatus randomFile = mockStoreFile(UUID.randomUUID().toString());
     allStoreFiles.add(randomFile);
-    deletableFiles = cache.getUnreferencedFiles(allStoreFiles);
+    deletableFiles = cache.getUnreferencedFiles(allStoreFiles, null);
     assertEquals(randomFile, Iterables.getOnlyElement(deletableFiles));
     assertEquals(1, count.get() - countBeforeCheck); // we check the tmp directory
   }
@@ -315,7 +316,7 @@ public class TestSnapshotFileCache {
   private Iterable<FileStatus> getNonSnapshotFiles(SnapshotFileCache cache, Path storeFile)
       throws IOException {
     return cache.getUnreferencedFiles(
-        Arrays.asList(FSUtils.listStatus(fs, storeFile.getParent()))
+        Arrays.asList(FSUtils.listStatus(fs, storeFile.getParent())), null
     );
   }
 }
