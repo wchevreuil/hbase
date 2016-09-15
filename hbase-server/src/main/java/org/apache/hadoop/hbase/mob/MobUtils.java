@@ -680,6 +680,14 @@ public class MobUtils {
   public static void doMobFileCompaction(Configuration conf, FileSystem fs, TableName tableName,
     HColumnDescriptor hcd, ExecutorService pool, TableLockManager tableLockManager,
     boolean isForceAllFiles) throws IOException {
+
+    if (HFile.getFormatVersion(conf) < HFile.MIN_FORMAT_VERSION_WITH_TAGS) {
+      throw new IOException("A minimum HFile version of "
+          + HFile.MIN_FORMAT_VERSION_WITH_TAGS
+          + " is required for MOB feature. Consider setting " + HFile.FORMAT_VERSION_KEY
+          + " in hbase master's hbase-site.xml accordingly.");
+    }
+
     String className = conf.get(MobConstants.MOB_FILE_COMPACTOR_CLASS_KEY,
       PartitionedMobFileCompactor.class.getName());
     // instantiate the mob file compactor.
