@@ -330,8 +330,22 @@ public class TestMasterReplication {
     try {
       replicationAdmin = new ReplicationAdmin(
           configurations[masterClusterNumber]);
-      replicationAdmin.addPeer(id,
-          utilities[slaveClusterNumber].getClusterKey());
+      ReplicationPeerConfig rpc = new ReplicationPeerConfig();
+      rpc.setClusterKey(utilities[slaveClusterNumber].getClusterKey());
+      replicationAdmin.addPeer(id, rpc);
+    } finally {
+      close(replicationAdmin);
+    }
+  }
+  
+  private void addPeer(String id, int masterClusterNumber, int slaveClusterNumber, String tableCfs)
+      throws Exception {
+    ReplicationAdmin replicationAdmin = null;
+    try {
+      replicationAdmin = new ReplicationAdmin(configurations[masterClusterNumber]);
+      ReplicationPeerConfig rpc = new ReplicationPeerConfig();
+      rpc.setClusterKey(utilities[slaveClusterNumber].getClusterKey());
+      replicationAdmin.addPeer(id, rpc, ReplicationSerDeHelper.parseTableCFsFromConfig(tableCfs));
     } finally {
       close(replicationAdmin);
     }

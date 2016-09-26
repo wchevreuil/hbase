@@ -118,6 +118,11 @@ message Table {
   required State state = 1 [default = ENABLED];
 }
 
+message TableCF {
+  optional TableName table_name = 1;
+  repeated bytes families = 2;
+}
+
 /**
  * Used by replication. Holds a replication peer key.
  */
@@ -128,6 +133,7 @@ message ReplicationPeer {
   optional string replicationEndpointImpl = 2;
   repeated BytesBytesPair data = 3;
   repeated NameStringPair configuration = 4;
+  repeated TableCF table_cfs = 5;
 }
 
 /**
@@ -166,3 +172,11 @@ message TableLock {
   optional string purpose = 5;
   optional int64 create_time = 6;
 }
+
+/**
+ * State of the switch.
+ */
+message SwitchState {
+  optional bool enabled = 1;
+}
+
