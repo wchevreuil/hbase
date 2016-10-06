@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.snapshot;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 
 import java.io.IOException;
 import java.net.URI;
@@ -51,6 +52,7 @@ import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.FSUtils;
 import org.apache.hadoop.hbase.util.Pair;
+
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -58,6 +60,7 @@ import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
+import org.junit.rules.TestName;
 import org.junit.rules.TestRule;
 
 /**
@@ -73,6 +76,9 @@ public class TestExportSnapshot {
 
   private final static byte[] FAMILY = Bytes.toBytes("cf");
 
+  @Rule
+  public final TestName testName = new TestName();
+
   private byte[] emptySnapshotName;
   private byte[] snapshotName;
   private int tableNumFiles;
@@ -86,19 +92,27 @@ public class TestExportSnapshot {
     conf.setInt(HConstants.HBASE_CLIENT_RETRIES_NUMBER, 6);
     conf.setBoolean("hbase.master.enabletable.roundrobin", true);
     conf.setInt("mapreduce.map.maxattempts", 10);
+    // If a single node has enough failures (default 3), resource manager will blacklist it.
+    // With only 2 nodes and tests injecting faults, we don't want that.
+    conf.setInt("mapreduce.job.maxtaskfailures.per.tracker", 100);
   }
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     setUpBaseConf(TEST_UTIL.getConfiguration());
-    TEST_UTIL.startMiniCluster(3);
+    // Setup separate test-data directory for MR cluster and set corresponding configurations.
+    // Otherwise, different test classes running MR cluster can step on each other.
+    TEST_UTIL.getDataTestDir();
+    TEST_UTIL.startMiniZKCluster();
     TEST_UTIL.startMiniMapReduceCluster();
+    TEST_UTIL.startMiniHBaseCluster(1, 3);
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
+    TEST_UTIL.shutdownMiniHBaseCluster();
     TEST_UTIL.shutdownMiniMapReduceCluster();
-    TEST_UTIL.shutdownMiniCluster();
+    TEST_UTIL.shutdownMiniZKCluster();
   }
 
   /**
@@ -108,10 +122,9 @@ public class TestExportSnapshot {
   public void setUp() throws Exception {
     this.admin = TEST_UTIL.getHBaseAdmin();
 
-    long tid = System.currentTimeMillis();
-    tableName = TableName.valueOf("testtb-" + tid);
-    snapshotName = Bytes.toBytes("snaptb0-" + tid);
-    emptySnapshotName = Bytes.toBytes("emptySnaptb0-" + tid);
+    tableName = TableName.valueOf("testtb-" + testName.getMethodName());
+    snapshotName = Bytes.toBytes("snaptb0-" + testName.getMethodName());
+    emptySnapshotName = Bytes.toBytes("emptySnaptb0-" + testName.getMethodName());
 
     // create Table
     SnapshotTestingUtils.createTable(TEST_UTIL, tableName, FAMILY);
@@ -212,8 +225,10 @@ public class TestExportSnapshot {
   @Test
   public void testConsecutiveExports() throws Exception {
     Path copyDir = getLocalDestinationDir();
-    testExportFileSystemState(tableName, snapshotName, snapshotName, tableNumFiles, copyDir, false);
-    testExportFileSystemState(tableName, snapshotName, snapshotName, tableNumFiles, copyDir, true);
+    testExportFileSystemState(TEST_UTIL.getConfiguration(), tableName, snapshotName, snapshotName,
+        tableNumFiles, copyDir, false, true);
+    testExportFileSystemState(TEST_UTIL.getConfiguration(), tableName, snapshotName, snapshotName,
+        tableNumFiles, copyDir, true, true);
     removeExportDir(copyDir);
   }
 
@@ -263,17 +278,18 @@ public class TestExportSnapshot {
   private void testExportFileSystemState(final TableName tableName, final byte[] snapshotName,
       final byte[] targetName, int filesExpected) throws Exception {
     Path copyDir = getHdfsDestinationDir();
-    testExportFileSystemState(tableName, snapshotName, targetName, filesExpected, copyDir, false);
+    testExportFileSystemState(TEST_UTIL.getConfiguration(), tableName, snapshotName, targetName,
+        filesExpected, copyDir, false, true);
     removeExportDir(copyDir);
   }
 
   /**
-   * Test ExportSnapshot
+   * Creates destination directory, runs ExportSnapshot() tool, and runs some verifications.
    */
-  private void testExportFileSystemState(final TableName tableName, final byte[] snapshotName,
-      final byte[] targetName, int filesExpected, Path copyDir, boolean overwrite)
-      throws Exception {
-    URI hdfsUri = FileSystem.get(TEST_UTIL.getConfiguration()).getUri();
+  private void testExportFileSystemState(Configuration conf, final TableName tableName,
+      final byte[] snapshotName, final byte[] targetName, int filesExpected, Path copyDir,
+      boolean overwrite, boolean success) throws Exception {
+    URI hdfsUri = FileSystem.get(conf).getUri();
     FileSystem fs = FileSystem.get(copyDir.toUri(), new Configuration());
     copyDir = copyDir.makeQualified(fs);
 
@@ -289,9 +305,13 @@ public class TestExportSnapshot {
     if (overwrite) opts.add("-overwrite");
 
     // Export Snapshot
-    int res = ExportSnapshot.innerMain(TEST_UTIL.getConfiguration(),
-        opts.toArray(new String[opts.size()]));
-    assertEquals(0, res);
+    int res = ExportSnapshot.innerMain(conf, opts.toArray(new String[opts.size()]));
+    assertEquals(success ? 0 : 1, res);
+    if (!success) {
+      final Path targetDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(targetName));
+      assertFalse(fs.exists(new Path(copyDir, targetDir)));
+      return;
+    }
 
     // Verify File-System state
     FileStatus[] rootFiles = fs.listStatus(copyDir);
@@ -304,7 +324,7 @@ public class TestExportSnapshot {
     }
 
     // compare the snapshot metadata and verify the hfiles
-    final FileSystem hdfs = FileSystem.get(hdfsUri, TEST_UTIL.getConfiguration());
+    final FileSystem hdfs = FileSystem.get(hdfsUri, conf);
     final Path snapshotDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(snapshotName));
     final Path targetDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(targetName));
     verifySnapshotDir(hdfs, new Path(TEST_UTIL.getDefaultRootDirPath(), snapshotDir),
@@ -314,43 +334,35 @@ public class TestExportSnapshot {
   }
 
   /**
-   * Check that ExportSnapshot will return a failure if something fails.
-   */
-  @Test
-  public void testExportFailure() throws Exception {
-    assertEquals(1, runExportAndInjectFailures(snapshotName, false));
-  }
-
-  /**
-   * Check that ExportSnapshot will succede if something fails but the retry succede.
+   * Check that ExportSnapshot will succeed if something fails but the retry succeed.
    */
   @Test
   public void testExportRetry() throws Exception {
-    assertEquals(0, runExportAndInjectFailures(snapshotName, true));
-  }
-
-  /*
-   * Execute the ExportSnapshot job injecting failures
-   */
-  private int runExportAndInjectFailures(final byte[] snapshotName, boolean retry)
-      throws Exception {
     Path copyDir = getLocalDestinationDir();
-    URI hdfsUri = FileSystem.get(TEST_UTIL.getConfiguration()).getUri();
     FileSystem fs = FileSystem.get(copyDir.toUri(), new Configuration());
     copyDir = copyDir.makeQualified(fs);
-
     Configuration conf = new Configuration(TEST_UTIL.getConfiguration());
-    conf.setBoolean(ExportSnapshot.CONF_TEST_FAILURE, true);
-    conf.setBoolean(ExportSnapshot.CONF_TEST_RETRY, retry);
+    conf.setBoolean(ExportSnapshot.Testing.CONF_TEST_FAILURE, true);
+    conf.setInt(ExportSnapshot.Testing.CONF_TEST_FAILURE_COUNT, 2);
+    conf.setInt("mapreduce.map.maxattempts", 3);
+    testExportFileSystemState(conf, tableName, snapshotName, snapshotName, tableNumFiles,
+        copyDir, false, true);
+  }
 
-    // Export Snapshot
-    Path sourceDir = TEST_UTIL.getHBaseCluster().getMaster().getMasterFileSystem().getRootDir();
-    int res = ExportSnapshot.innerMain(conf, new String[] {
-      "-snapshot", Bytes.toString(snapshotName),
-      "-copy-from", sourceDir.toString(),
-      "-copy-to", copyDir.toString()
-    });
-    return res;
+  /**
+   * Check that ExportSnapshot will fail if we inject failure more times than MR will retry.
+   */
+  @Test
+  public void testExportFailure() throws Exception {
+    Path copyDir = getLocalDestinationDir();
+    FileSystem fs = FileSystem.get(copyDir.toUri(), new Configuration());
+    copyDir = copyDir.makeQualified(fs);
+    Configuration conf = new Configuration(TEST_UTIL.getConfiguration());
+    conf.setBoolean(ExportSnapshot.Testing.CONF_TEST_FAILURE, true);
+    conf.setInt(ExportSnapshot.Testing.CONF_TEST_FAILURE_COUNT, 4);
+    conf.setInt("mapreduce.map.maxattempts", 3);
+    testExportFileSystemState(conf, tableName, snapshotName, snapshotName, tableNumFiles,
+        copyDir, false, false);
   }
 
   /*

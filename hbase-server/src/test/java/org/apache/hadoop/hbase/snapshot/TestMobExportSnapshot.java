@@ -19,6 +19,7 @@
 package org.apache.hadoop.hbase.snapshot;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
@@ -88,8 +89,12 @@ public class TestMobExportSnapshot {
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     setUpBaseConf(TEST_UTIL.getConfiguration());
-    TEST_UTIL.startMiniCluster(3);
+    // Setup separate test-data directory for MR cluster and set corresponding configurations.
+    // Otherwise, different test classes running MR cluster can step on each other.
+    TEST_UTIL.getDataTestDir();
+    TEST_UTIL.startMiniZKCluster();
     TEST_UTIL.startMiniMapReduceCluster();
+    TEST_UTIL.startMiniHBaseCluster(1, 3);
   }
 
   @AfterClass
@@ -207,8 +212,10 @@ public class TestMobExportSnapshot {
   @Test
   public void testConsecutiveExports() throws Exception {
     Path copyDir = getLocalDestinationDir();
-    testExportFileSystemState(tableName, snapshotName, snapshotName, tableNumFiles, copyDir, false);
-    testExportFileSystemState(tableName, snapshotName, snapshotName, tableNumFiles, copyDir, true);
+    testExportFileSystemState(TEST_UTIL.getConfiguration(), tableName, snapshotName,
+        snapshotName, tableNumFiles, copyDir, false, true);
+    testExportFileSystemState(TEST_UTIL.getConfiguration(), tableName, snapshotName,
+        snapshotName, tableNumFiles, copyDir, true, true);
     removeExportDir(copyDir);
   }
 
@@ -258,17 +265,18 @@ public class TestMobExportSnapshot {
   private void testExportFileSystemState(final TableName tableName, final byte[] snapshotName,
       final byte[] targetName, int filesExpected) throws Exception {
     Path copyDir = getHdfsDestinationDir();
-    testExportFileSystemState(tableName, snapshotName, targetName, filesExpected, copyDir, false);
+    testExportFileSystemState(TEST_UTIL.getConfiguration(), tableName, snapshotName, targetName,
+        filesExpected, copyDir, false, true);
     removeExportDir(copyDir);
   }
 
   /**
    * Test ExportSnapshot
    */
-  private void testExportFileSystemState(final TableName tableName, final byte[] snapshotName,
-      final byte[] targetName, int filesExpected, Path copyDir, boolean overwrite)
-      throws Exception {
-    URI hdfsUri = FileSystem.get(TEST_UTIL.getConfiguration()).getUri();
+  private void testExportFileSystemState(Configuration conf, final TableName tableName,
+      final byte[] snapshotName, final byte[] targetName, int filesExpected, Path copyDir,
+      boolean overwrite, boolean success) throws Exception {
+    URI hdfsUri = FileSystem.get(conf).getUri();
     FileSystem fs = FileSystem.get(copyDir.toUri(), new Configuration());
     copyDir = copyDir.makeQualified(fs);
 
@@ -284,9 +292,13 @@ public class TestMobExportSnapshot {
     if (overwrite) opts.add("-overwrite");
 
     // Export Snapshot
-    int res = ExportSnapshot.innerMain(TEST_UTIL.getConfiguration(),
-        opts.toArray(new String[opts.size()]));
-    assertEquals(0, res);
+    int res = ExportSnapshot.innerMain(conf, opts.toArray(new String[opts.size()]));
+    assertEquals(success ? 0 : 1, res);
+    if (!success) {
+      final Path targetDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(targetName));
+      assertFalse(fs.exists(new Path(copyDir, targetDir)));
+      return;
+    }
 
     // Verify File-System state
     FileStatus[] rootFiles = fs.listStatus(copyDir);
@@ -299,7 +311,7 @@ public class TestMobExportSnapshot {
     }
 
     // compare the snapshot metadata and verify the hfiles
-    final FileSystem hdfs = FileSystem.get(hdfsUri, TEST_UTIL.getConfiguration());
+    final FileSystem hdfs = FileSystem.get(hdfsUri, conf);
     final Path snapshotDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(snapshotName));
     final Path targetDir = new Path(HConstants.SNAPSHOT_DIR_NAME, Bytes.toString(targetName));
     verifySnapshotDir(hdfs, new Path(TEST_UTIL.getDefaultRootDirPath(), snapshotDir),
@@ -313,7 +325,15 @@ public class TestMobExportSnapshot {
    */
   @Test
   public void testExportFailure() throws Exception {
-    assertEquals(1, runExportAndInjectFailures(snapshotName, false));
+    Path copyDir = getLocalDestinationDir();
+    FileSystem fs = FileSystem.get(copyDir.toUri(), new Configuration());
+    copyDir = copyDir.makeQualified(fs);
+    Configuration conf = new Configuration(TEST_UTIL.getConfiguration());
+    conf.setBoolean(ExportSnapshot.Testing.CONF_TEST_FAILURE, true);
+    conf.setInt(ExportSnapshot.Testing.CONF_TEST_FAILURE_COUNT, 4);
+    conf.setInt("mapreduce.map.maxattempts", 3);
+    testExportFileSystemState(conf, tableName, snapshotName, snapshotName, tableNumFiles,
+        copyDir, false, false);
   }
 
   /**
@@ -321,31 +341,15 @@ public class TestMobExportSnapshot {
    */
   @Test
   public void testExportRetry() throws Exception {
-    assertEquals(0, runExportAndInjectFailures(snapshotName, true));
-  }
-
-  /*
-   * Execute the ExportSnapshot job injecting failures
-   */
-  private int runExportAndInjectFailures(final byte[] snapshotName, boolean retry)
-      throws Exception {
     Path copyDir = getLocalDestinationDir();
-    URI hdfsUri = FileSystem.get(TEST_UTIL.getConfiguration()).getUri();
     FileSystem fs = FileSystem.get(copyDir.toUri(), new Configuration());
     copyDir = copyDir.makeQualified(fs);
-
     Configuration conf = new Configuration(TEST_UTIL.getConfiguration());
-    conf.setBoolean(ExportSnapshot.CONF_TEST_FAILURE, true);
-    conf.setBoolean(ExportSnapshot.CONF_TEST_RETRY, retry);
-
-    // Export Snapshot
-    Path sourceDir = TEST_UTIL.getHBaseCluster().getMaster().getMasterFileSystem().getRootDir();
-    int res = ExportSnapshot.innerMain(conf, new String[] {
-      "-snapshot", Bytes.toString(snapshotName),
-      "-copy-from", sourceDir.toString(),
-      "-copy-to", copyDir.toString()
-    });
-    return res;
+    conf.setBoolean(ExportSnapshot.Testing.CONF_TEST_FAILURE, true);
+    conf.setInt(ExportSnapshot.Testing.CONF_TEST_FAILURE_COUNT, 2);
+    conf.setInt("mapreduce.map.maxattempts", 3);
+    testExportFileSystemState(conf, tableName, snapshotName, snapshotName, tableNumFiles,
+        copyDir, false, true);
   }
 
   /*
