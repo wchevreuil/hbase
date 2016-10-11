@@ -456,9 +456,9 @@ class HBaseContext(@transient sc: SparkContext,
     val config = getConf(configBroadcast)
 
     // specify that this is a proxy user
-    val connection = ConnectionFactory.createConnection(config)
-    f(it, connection)
-    connection.close()
+    val smartConn = HBaseConnectionCache.getConnection(config)
+    f(it, smartConn.connection)
+    smartConn.close()
   }
 
   private def getConf(configBroadcast: Broadcast[SerializableWritable[Configuration]]):
@@ -495,11 +495,10 @@ class HBaseContext(@transient sc: SparkContext,
 
     val config = getConf(configBroadcast)
 
-    val connection = ConnectionFactory.createConnection(config)
-    val res = mp(it, connection)
-    connection.close()
+    val smartConn = HBaseConnectionCache.getConnection(config)
+    val res = mp(it, smartConn.connection)
+    smartConn.close()
     res
-
   }
 
   /**
@@ -592,7 +591,7 @@ class HBaseContext(@transient sc: SparkContext,
                   compactionExclude: Boolean = false,
                   maxSize:Long = HConstants.DEFAULT_MAX_FILE_SIZE):
   Unit = {
-    val conn = ConnectionFactory.createConnection(config)
+    val conn = HBaseConnectionCache.getConnection(config)
     val regionLocator = conn.getRegionLocator(tableName)
     val startKeys = regionLocator.getStartKeys
     val defaultCompressionStr = config.get("hfile.compression",
@@ -714,7 +713,7 @@ class HBaseContext(@transient sc: SparkContext,
                   compactionExclude: Boolean = false,
                   maxSize:Long = HConstants.DEFAULT_MAX_FILE_SIZE):
   Unit = {
-    val conn = ConnectionFactory.createConnection(config)
+    val conn = HBaseConnectionCache.getConnection(config)
     val regionLocator = conn.getRegionLocator(tableName)
     val startKeys = regionLocator.getStartKeys
     val defaultCompressionStr = config.get("hfile.compression",

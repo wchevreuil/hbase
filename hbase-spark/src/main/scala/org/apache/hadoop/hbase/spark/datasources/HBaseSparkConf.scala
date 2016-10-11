@@ -31,4 +31,7 @@ object HBaseSparkConf{
   val defaultBatchNum = 1000
   val BULKGET_SIZE = "spark.hbase.bulkGetSize"
   val defaultBulkGetSize = 1000
+
+  // in milliseconds
+  val connectionCloseDelay = 10 * 60 * 1000
 }
