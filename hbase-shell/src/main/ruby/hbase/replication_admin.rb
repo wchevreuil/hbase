@@ -40,7 +40,16 @@ module Hbase
     #----------------------------------------------------------------------------------------------
     # Add a new peer cluster to replicate to
     def add_peer(id, args = {}, peer_tableCFs = nil)
-      if args.is_a?(Hash)
+      if args.is_a?(String)
+            cluster_key = args
+            if !peer_tableCFs.nil?
+              # if more than colon is present. Fail and warn to use new syntax
+              if peer_tableCFs.scan(/:[0-9a-z\.]+:/).size > 0
+                raise(ArgumentError, "peer_tableCFs contains a namespace and CF, see help for alternate syntax.")
+              end
+            end
+            @replication_admin.addPeer(id, cluster_key, peer_tableCFs)
+      elsif args.is_a?(Hash)
         unless peer_tableCFs.nil?
           raise(ArgumentError, "peer_tableCFs should be specified as TABLE_CFS in args")
         end
@@ -97,7 +106,7 @@ module Hbase
 
         @replication_admin.add_peer(id, replication_peer_config)
       else
-        raise(ArgumentError, "args must be a Hash")
+        raise(ArgumentError, "args must be a String or Hash")
       end
     end
 

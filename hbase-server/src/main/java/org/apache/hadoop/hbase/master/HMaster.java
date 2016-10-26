@@ -690,10 +690,12 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
 
     // This is for backwards compatibility
     // See HBASE-11393
-    status.setStatus("Update TableCFs node in ZNode");
-    TableCFsUpdater tableCFsUpdater = new TableCFsUpdater(zooKeeper,
-            conf, this.clusterConnection);
-    tableCFsUpdater.update();
+    if (this.conf.getBoolean("hbase.ReplicationMigrationConvertingToPB", true)) {
+      status.setStatus("Update TableCFs node in ZNode");
+      TableCFsUpdater tableCFsUpdater = new TableCFsUpdater(zooKeeper,
+        conf, this.clusterConnection);
+      tableCFsUpdater.update();
+    }
 
     // initialize master side coprocessors before we start handling requests
     status.setStatus("Initializing master coprocessors");

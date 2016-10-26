@@ -71,9 +71,6 @@ module Hbase
       assert_raise(ArgumentError) do
         replication_admin.add_peer(@peer_id, ['test'])
       end
-      assert_raise(ArgumentError) do
-        replication_admin.add_peer(@peer_id, 'test')
-      end
     end
 
     define_test "add_peer: single zk cluster key - peer config" do

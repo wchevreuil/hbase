@@ -99,7 +99,10 @@ public final class ReplicationSerDeHelper {
       String[] pair = tab.split(":");
       String tabName = pair[0].trim();
       if (pair.length > 2 || tabName.length() == 0) {
-        LOG.info("incorrect format:" + tableCFsConfig);
+        LOG.warn("incorrect format:" + tableCFsConfig + (pair.length == 3 ? " found a namespace in the "
+          + "peer configuration, please set "
+          + "ReplicationMigrationConvertingToPB to true in the HBase master in order to use namespaces for replication."
+          : ""));
         continue;
       }
 

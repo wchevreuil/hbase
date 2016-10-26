@@ -62,6 +62,7 @@ public class TestTableCFsUpdater extends TableCFsUpdater {
 
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
+    TEST_UTIL.getConfiguration().setBoolean("hbase.ReplicationMigrationConvertingToPB", true);
     TEST_UTIL.startMiniZKCluster();
     Configuration conf = TEST_UTIL.getConfiguration();
     abortable = new Abortable() {
@@ -90,13 +91,14 @@ public class TestTableCFsUpdater extends TableCFsUpdater {
     TableName tab1 = TableName.valueOf("table1");
     TableName tab2 = TableName.valueOf("table2");
     TableName tab3 = TableName.valueOf("table3");
+    TableName tab4 = TableName.valueOf("table4");
 
     ReplicationPeerConfig rpc = new ReplicationPeerConfig();
     rpc.setClusterKey(zkw.getQuorum());
     String peerNode = getPeerNode(peerId);
     ZKUtil.createWithParents(zkw, peerNode, ReplicationSerDeHelper.toByteArray(rpc));
 
-    String tableCFs = "table1:cf1,cf2;table2:cf3;table3";
+    String tableCFs = "table1:cf1,cf2;table2:cf3;table3;table4:cf.4";
     String tableCFsNode = getTableCFsNode(peerId);
     LOG.info("create tableCFs :" + tableCFsNode + " for peerId=" + peerId);
     ZKUtil.createWithParents(zkw, tableCFsNode , Bytes.toBytes(tableCFs));
@@ -114,7 +116,7 @@ public class TestTableCFsUpdater extends TableCFsUpdater {
     peerNode = getPeerNode(peerId);
     ZKUtil.createWithParents(zkw, peerNode, ReplicationSerDeHelper.toByteArray(rpc));
 
-    tableCFs = "table1:cf1,cf3;table2:cf2";
+    tableCFs = "table1:cf1,cf3;table2:cf2;table4:cf.4";
     tableCFsNode = getTableCFsNode(peerId);
     LOG.info("create tableCFs :" + tableCFsNode + " for peerId=" + peerId);
     ZKUtil.createWithParents(zkw, tableCFsNode , Bytes.toBytes(tableCFs));
@@ -134,15 +136,20 @@ public class TestTableCFsUpdater extends TableCFsUpdater {
     actualRpc = ReplicationSerDeHelper.parsePeerFrom(ZKUtil.getData(zkw, peerNode));
     assertEquals(rpc.getClusterKey(), actualRpc.getClusterKey());
     Map<TableName, List<String>> tableNameListMap = actualRpc.getTableCFsMap();
-    assertEquals(3, tableNameListMap.size());
+    assertEquals(4, tableNameListMap.size());
     assertTrue(tableNameListMap.containsKey(tab1));
     assertTrue(tableNameListMap.containsKey(tab2));
     assertTrue(tableNameListMap.containsKey(tab3));
+    assertTrue(tableNameListMap.containsKey(tab4));
+
     assertEquals(2, tableNameListMap.get(tab1).size());
     assertEquals("cf1", tableNameListMap.get(tab1).get(0));
     assertEquals("cf2", tableNameListMap.get(tab1).get(1));
     assertEquals(1, tableNameListMap.get(tab2).size());
     assertEquals("cf3", tableNameListMap.get(tab2).get(0));
+    assertEquals(1, tableNameListMap.get(tab4).size());
+    assertEquals("cf.4", tableNameListMap .get(tab4).get(0));
+
     assertNull(tableNameListMap.get(tab3));
 
 
@@ -151,7 +158,7 @@ public class TestTableCFsUpdater extends TableCFsUpdater {
     actualRpc = ReplicationSerDeHelper.parsePeerFrom(ZKUtil.getData(zkw, peerNode));
     assertEquals(rpc.getClusterKey(), actualRpc.getClusterKey());
     tableNameListMap = actualRpc.getTableCFsMap();
-    assertEquals(2, tableNameListMap.size());
+    assertEquals(3, tableNameListMap.size());
     assertTrue(tableNameListMap.containsKey(tab1));
     assertTrue(tableNameListMap.containsKey(tab2));
     assertEquals(2, tableNameListMap.get(tab1).size());
@@ -159,6 +166,7 @@ public class TestTableCFsUpdater extends TableCFsUpdater {
     assertEquals("cf3", tableNameListMap.get(tab1).get(1));
     assertEquals(1, tableNameListMap.get(tab2).size());
     assertEquals("cf2", tableNameListMap.get(tab2).get(0));
+    assertEquals(1, tableNameListMap.get(tab4).size());
+    assertEquals("cf.4", tableNameListMap.get(tab4).get(0));
   }
-
 }
