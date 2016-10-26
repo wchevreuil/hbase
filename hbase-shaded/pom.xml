@@ -82,6 +82,7 @@
                       <bundled-logo>${license.bundles.logo}</bundled-logo>
                       <bundled-bootstrap>${license.bundles.bootstrap}</bundled-bootstrap>
                     </properties>
+                    <excludeArtifactIds>clover</excludeArtifactIds>
                     <resourceBundles>
                       <resourceBundle>${project.groupId}:hbase-resource-bundle:${project.version}</resourceBundle>
                     </resourceBundles>
@@ -129,6 +130,7 @@
                                         <exclude>org.apache.htrace:*</exclude>
                                         <exclude>log4j:*</exclude>
                                         <exclude>commons-logging:*</exclude>
+                                        <exclude>com.atlassian.clover:clover</exclude>
                                     </excludes>
                                 </artifactSet>
                                 <relocations>

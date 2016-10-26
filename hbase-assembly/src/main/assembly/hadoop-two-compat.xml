@@ -63,6 +63,7 @@
     clashes when he is running a Mapreduce job in a MR2/YARN environment -->
             <excludes>
               <exclude>org.apache.hadoop:hadoop-core</exclude>
+              <exclude>com.atlassian.clover:clover</exclude>
             </excludes>
             <outputFileNameMapping>${artifact.artifactId}-${artifact.baseVersion}${dashClassifier?}.${artifact.extension}</outputFileNameMapping>
           </dependencySet>
