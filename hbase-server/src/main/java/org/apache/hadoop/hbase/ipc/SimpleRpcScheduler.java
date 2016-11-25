@@ -167,14 +167,14 @@ public class SimpleRpcScheduler extends RpcScheduler {
   }
 
   public SimpleRpcScheduler(
-	      Configuration conf,
-	      int handlerCount,
-	      int priorityHandlerCount,
-	      int replicationHandlerCount,
-	      PriorityFunction priority,
-	      int highPriorityLevel) {
-	  this(conf, handlerCount, priorityHandlerCount, replicationHandlerCount, priority,
-	    null, highPriorityLevel);
+        Configuration conf,
+        int handlerCount,
+        int priorityHandlerCount,
+        int replicationHandlerCount,
+        PriorityFunction priority,
+        int highPriorityLevel) {
+    this(conf, handlerCount, priorityHandlerCount, replicationHandlerCount, priority,
+      null, highPriorityLevel);
   }
 
   @Override
@@ -230,5 +230,34 @@ public class SimpleRpcScheduler extends RpcScheduler {
            (priorityExecutor == null ? 0 : priorityExecutor.getActiveHandlerCount()) +
            (replicationExecutor == null ? 0 : replicationExecutor.getActiveHandlerCount());
   }
-}
 
+  @Override
+  public int getWriteQueueLength() {
+    return callExecutor.getWriteQueueLength();
+  }
+
+  @Override
+  public int getReadQueueLength() {
+    return callExecutor.getReadQueueLength();
+  }
+
+  @Override
+  public int getScanQueueLength() {
+    return callExecutor.getScanQueueLength();
+  }
+
+  @Override
+  public int getActiveWriteRpcHandlerCount() {
+    return callExecutor.getActiveWriteHandlerCount();
+  }
+
+  @Override
+  public int getActiveReadRpcHandlerCount() {
+    return callExecutor.getActiveReadHandlerCount();
+  }
+
+  @Override
+  public int getActiveScanRpcHandlerCount() {
+    return callExecutor.getActiveScanHandlerCount();
+  }
+}

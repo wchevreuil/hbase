@@ -235,7 +235,19 @@ public class MetricsHBaseServerSourceImpl extends BaseSourceImpl
           .addGauge(Interns.info(NUM_OPEN_CONNECTIONS_NAME,
               NUM_OPEN_CONNECTIONS_DESC), wrapper.getNumOpenConnections())
           .addGauge(Interns.info(NUM_ACTIVE_HANDLER_NAME,
-              NUM_ACTIVE_HANDLER_DESC), wrapper.getActiveRpcHandlerCount());
+              NUM_ACTIVE_HANDLER_DESC), wrapper.getActiveRpcHandlerCount())
+          .addGauge(Interns.info(WRITE_QUEUE_NAME, WRITE_QUEUE_DESC),
+              wrapper.getWriteQueueLength())
+          .addGauge(Interns.info(READ_QUEUE_NAME, READ_QUEUE_DESC),
+              wrapper.getReadQueueLength())
+          .addGauge(Interns.info(SCAN_QUEUE_NAME, SCAN_QUEUE_DESC),
+              wrapper.getScanQueueLength())
+          .addGauge(Interns.info(NUM_ACTIVE_WRITE_HANDLER_NAME, NUM_ACTIVE_WRITE_HANDLER_DESC),
+              wrapper.getActiveWriteRpcHandlerCount())
+          .addGauge(Interns.info(NUM_ACTIVE_READ_HANDLER_NAME, NUM_ACTIVE_READ_HANDLER_DESC),
+              wrapper.getActiveReadRpcHandlerCount())
+          .addGauge(Interns.info(NUM_ACTIVE_SCAN_HANDLER_NAME, NUM_ACTIVE_SCAN_HANDLER_DESC),
+              wrapper.getActiveScanRpcHandlerCount());
     }
 
     metricsRegistry.snapshot(mrb, all);

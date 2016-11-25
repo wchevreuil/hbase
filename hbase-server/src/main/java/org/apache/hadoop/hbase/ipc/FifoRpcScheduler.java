@@ -104,4 +104,34 @@ public class FifoRpcScheduler extends RpcScheduler {
   public int getActiveRpcHandlerCount() {
     return executor.getActiveCount();
   }
+
+  @Override
+  public int getWriteQueueLength() {
+    return 0;
+  }
+
+  @Override
+  public int getReadQueueLength() {
+    return 0;
+  }
+
+  @Override
+  public int getScanQueueLength() {
+    return 0;
+  }
+
+  @Override
+  public int getActiveWriteRpcHandlerCount() {
+    return 0;
+  }
+
+  @Override
+  public int getActiveReadRpcHandlerCount() {
+    return 0;
+  }
+
+  @Override
+  public int getActiveScanRpcHandlerCount() {
+    return 0;
+  }
 }

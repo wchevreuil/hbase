@@ -22,6 +22,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.Abortable;
@@ -52,8 +53,9 @@ public class FifoWithFastPathBalancedQueueRpcExecutor extends BalancedQueueRpcEx
 
   @Override
   protected Handler getHandler(String name, double handlerFailureThreshhold,
-      BlockingQueue<CallRunner> q) {
-    return new FastPathHandler(name, handlerFailureThreshhold, q, fastPathHandlerStack);
+      BlockingQueue<CallRunner> q, AtomicInteger activeHandlerCount) {
+    return new FastPathHandler(name, handlerFailureThreshhold, q, activeHandlerCount,
+        fastPathHandlerStack);
   }
 
   @Override
@@ -79,8 +81,9 @@ public class FifoWithFastPathBalancedQueueRpcExecutor extends BalancedQueueRpcEx
     private CallRunner loadedCallRunner;
 
     FastPathHandler(String name, double handlerFailureThreshhold, BlockingQueue<CallRunner> q,
+        final AtomicInteger activeHandlerCount,
         final Deque<FastPathHandler> fastPathHandlerStack) {
-      super(name, handlerFailureThreshhold, q);
+      super(name, handlerFailureThreshhold, q, activeHandlerCount);
       this.fastPathHandlerStack = fastPathHandlerStack;
       this.semaphore.drainPermits();
     }
