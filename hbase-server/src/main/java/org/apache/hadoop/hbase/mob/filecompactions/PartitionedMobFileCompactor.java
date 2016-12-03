@@ -160,10 +160,11 @@ public class PartitionedMobFileCompactor extends MobFileCompactor {
         id.setDate(MobFileName.getDateFromName(fileName));
         CompactionPartition compactionPartition = filesToCompact.get(id);
         if (compactionPartition == null) {
-          compactionPartition = new CompactionPartition(
-              new CompactionPartitionId(id.getStartKey(), id.getDate()));
+          CompactionPartitionId newId = new CompactionPartitionId(id.getStartKey(), id.getDate());
+          compactionPartition = new CompactionPartition(newId);
+
           compactionPartition.addFile(file);
-          filesToCompact.put(id, compactionPartition);
+          filesToCompact.put(newId, compactionPartition);
         } else {
           compactionPartition.addFile(file);
         }
