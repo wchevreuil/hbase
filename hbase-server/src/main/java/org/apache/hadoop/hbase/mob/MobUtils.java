@@ -46,6 +46,7 @@ import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HColumnDescriptor;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.HRegionInfo;
+import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Tag;
@@ -504,8 +505,8 @@ public class MobUtils {
       HColumnDescriptor family, String date, Path basePath, long maxKeyCount,
       Compression.Algorithm compression, byte[] startKey, CacheConfig cacheConfig)
       throws IOException {
-    MobFileName mobFileName = MobFileName.create(startKey, date, UUID.randomUUID().toString()
-        .replaceAll("-", ""));
+    MobFileName mobFileName = MobFileName.create(startKey, date,
+        UUID.randomUUID().toString().replaceAll("-", ""));
     return createWriter(conf, fs, family, mobFileName, basePath, maxKeyCount, compression,
       cacheConfig);
   }
@@ -754,6 +755,21 @@ public class MobUtils {
       });
     ((ThreadPoolExecutor) pool).allowCoreThreadTimeOut(true);
     return pool;
+  }
+
+  /**
+   * Checks whether this table has mob-enabled columns.
+   * @param htd The current table descriptor.
+   * @return Whether this table has mob-enabled columns.
+   */
+  public static boolean hasMobColumns(HTableDescriptor htd) {
+    HColumnDescriptor[] hcds = htd.getColumnFamilies();
+    for (HColumnDescriptor hcd : hcds) {
+      if (hcd.isMobEnabled()) {
+        return true;
+      }
+    }
+    return false;
   }
 
   /**

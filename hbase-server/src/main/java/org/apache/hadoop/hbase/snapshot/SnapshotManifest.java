@@ -161,7 +161,7 @@ public class SnapshotManifest {
     }
   }
 
-  public void addMobRegion(HRegionInfo regionInfo, HColumnDescriptor[] hcds) throws IOException {
+  public void addMobRegion(HRegionInfo regionInfo) throws IOException {
     // 0. Get the ManifestBuilder/RegionVisitor
     RegionVisitor visitor = createRegionVisitor(desc);
 
@@ -174,7 +174,7 @@ public class SnapshotManifest {
     LOG.debug("Creating references for hfiles");
 
     Path mobRegionPath = MobUtils.getMobRegionPath(conf, regionInfo.getTable());
-    for (HColumnDescriptor hcd : hcds) {
+    for (HColumnDescriptor hcd : htd.getColumnFamilies()) {
       // 2.1. build the snapshot reference for the store if it's a mob store
       if (!hcd.isMobEnabled()) {
         continue;
@@ -265,9 +265,14 @@ public class SnapshotManifest {
 
     boolean isMobRegion = MobUtils.isMobRegionInfo(regionInfo);
     try {
+      Path baseDir = tableDir;
       // Open the RegionFS
+      if (isMobRegion) {
+        baseDir = FSUtils.getTableDir(MobUtils.getMobHome(conf), regionInfo.getTable());
+      }
+
       HRegionFileSystem regionFs = HRegionFileSystem.openRegionFromFileSystem(conf, fs,
-            tableDir, regionInfo, true);
+            baseDir, regionInfo, true);
       monitor.rethrowException();
 
       // 1. dump region meta info into the snapshot directory
@@ -289,24 +294,7 @@ public class SnapshotManifest {
           Object familyData = visitor.familyOpen(regionData, Bytes.toBytes(familyName));
           monitor.rethrowException();
 
-          Collection<StoreFileInfo> storeFiles = null;
-          if (isMobRegion) {
-            Path regionPath = MobUtils.getMobRegionPath(conf, regionInfo.getTable());
-            Path storePath = MobUtils.getMobFamilyPath(regionPath, familyName);
-            if (!fs.exists(storePath)) {
-              continue;
-            }
-            FileStatus[] stats = fs.listStatus(storePath);
-            if (stats == null) {
-              continue;
-            }
-            storeFiles = new ArrayList<StoreFileInfo>();
-            for (FileStatus stat : stats) {
-              storeFiles.add(new StoreFileInfo(conf, fs, stat));
-            }
-          } else {
-            storeFiles = regionFs.getStoreFiles(familyName);
-          }
+          Collection<StoreFileInfo> storeFiles = regionFs.getStoreFiles(familyName);
           if (storeFiles == null) {
             if (LOG.isDebugEnabled()) {
               LOG.debug("No files under family: " + familyName);
