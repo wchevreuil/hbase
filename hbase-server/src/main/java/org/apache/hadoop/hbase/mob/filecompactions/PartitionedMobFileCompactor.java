@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -166,6 +167,25 @@ public class PartitionedMobFileCompactor extends MobFileCompactor {
         selectedFileCount++;
       }
     }
+
+    /*
+     * If it is not a major mob compaction with del files, and the file number in Partition is 1,
+     * remove the partition from filesToCompact list to avoid re-compacting files which has been
+     * compacted with del files.
+     */
+    if (!isForceAllFiles && (allDelFiles.size() > 0)) {
+      Iterator<Map.Entry<CompactionPartitionId, CompactionPartition>> it =
+          filesToCompact.entrySet().iterator();
+
+      while(it.hasNext()) {
+        Map.Entry<CompactionPartitionId, CompactionPartition> entry = it.next();
+        if (entry.getValue().getFileCount() == 1) {
+          it.remove();
+          --selectedFileCount;
+        }
+      }
+    }
+
     PartitionedMobFileCompactionRequest request = new PartitionedMobFileCompactionRequest(
       filesToCompact.values(), allDelFiles);
     if (candidates.size() == (allDelFiles.size() + selectedFileCount + irrelevantFileCount)) {

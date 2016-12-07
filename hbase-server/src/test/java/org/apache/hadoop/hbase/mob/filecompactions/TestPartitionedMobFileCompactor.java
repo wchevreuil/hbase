@@ -124,8 +124,8 @@ public class TestPartitionedMobFileCompactor {
     int count = 10;
     // create 10 mob files.
     createStoreFiles(basePath, family, qf, count, Type.Put);
-    // create 10 del files
-    createStoreFiles(basePath, family, qf, count, Type.Delete);
+    // If there is only 1 file, it will not be compacted with _del files, so
+    // It wont be CompactionType.ALL_FILES in this case, do not create with _del files.
     listFiles();
     long mergeSize = MobConstants.DEFAULT_MOB_FILE_COMPACTION_MERGEABLE_THRESHOLD;
     List<String> expectedStartKeys = new ArrayList<>();
@@ -137,6 +137,27 @@ public class TestPartitionedMobFileCompactor {
       }
     }
     testSelectFiles(tableName, CompactionType.ALL_FILES, false, expectedStartKeys);
+  }
+
+  @Test
+  public void testCompactionSelectToAvoidCompactOneFileWithDelete() throws Exception {
+    // If there is only 1 file, it will not be compacted with _del files, so
+    // It wont be CompactionType.ALL_FILES in this case, and expected compact file count will be 0.
+    resetConf();
+    String tableName = "testCompactionSelectToAvoidCompactOneFileWithDelete";
+    init(tableName);
+    int count = 10;
+    // create 10 mob files.
+    createStoreFiles(basePath, family, qf, count, Type.Put);
+    // If there is only 1 file, it will not be compacted with _del files, so
+    // It wont be CompactionType.ALL_FILES in this case, and expected compact file count will be 0.
+    // create 10 del files
+    createStoreFiles(basePath, family, qf, count, Type.Delete);
+
+    listFiles();
+    long mergeSize = MobConstants.DEFAULT_MOB_FILE_COMPACTION_MERGEABLE_THRESHOLD;
+    List<String> expectedStartKeys = new ArrayList<>();
+    testSelectFiles(tableName, CompactionType.PART_FILES, false, expectedStartKeys);
   }
 
   @Test
