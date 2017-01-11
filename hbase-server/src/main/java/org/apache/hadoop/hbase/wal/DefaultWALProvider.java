@@ -23,6 +23,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -44,10 +45,10 @@ import org.apache.hadoop.hbase.regionserver.wal.ProtobufLogWriter;
 import org.apache.hadoop.hbase.regionserver.wal.WALActionsListener;
 
 /**
- * A WAL Provider that returns a single thread safe WAL that writes to HDFS.
- * By default, this implementation picks a directory in HDFS based on a combination of
+ * A WAL Provider that returns a single thread safe WAL that writes to Hadoop FS.
+ * By default, this implementation picks a directory in Hadoop FS based on a combination of
  * <ul>
- *   <li>the HBase root directory
+ *   <li>the HBase root WAL directory
  *   <li>HConstants.HREGION_LOGDIR_NAME
  *   <li>the given factory's factoryId (usually identifying the regionserver by host:port)
  * </ul>
@@ -76,6 +77,18 @@ public class DefaultWALProvider implements WALProvider {
   }
 
   protected FSHLog log = null;
+  private WALFactory factory = null;
+  private Configuration conf = null;
+  private List<WALActionsListener> listeners = null;
+  private String providerId = null;
+  private AtomicBoolean initialized = new AtomicBoolean(false);
+  // for default wal provider, logPrefix won't change
+  private String logPrefix = null;
+
+  /**
+   * we synchronized on walCreateLock to prevent wal recreation in different threads
+   */
+  private final Object walCreateLock = new Object();
 
   /**
    * @param factory factory that made us, identity used for FS layout. may not be null
@@ -87,21 +100,45 @@ public class DefaultWALProvider implements WALProvider {
   @Override
   public void init(final WALFactory factory, final Configuration conf,
       final List<WALActionsListener> listeners, String providerId) throws IOException {
-    if (null != log) {
+    if (!initialized.compareAndSet(false, true)) {
       throw new IllegalStateException("WALProvider.init should only be called once.");
     }
     if (null == providerId) {
       providerId = DEFAULT_PROVIDER_ID;
     }
-    final String logPrefix = factory.factoryId + WAL_FILE_NAME_DELIMITER + providerId;
-    log = new FSHLog(FileSystem.get(conf), FSUtils.getRootDir(conf),
-        getWALDirectoryName(factory.factoryId), HConstants.HREGION_OLDLOGDIR_NAME, conf, listeners,
-        true, logPrefix, META_WAL_PROVIDER_ID.equals(providerId) ? META_WAL_PROVIDER_ID : null);
+
+    this.factory = factory;
+    this.conf = conf;
+    this.listeners = listeners;
+    this.providerId = providerId;
+
+    // get log prefix
+    StringBuilder sb = new StringBuilder().append(factory.factoryId);
+    if (providerId.startsWith(WAL_FILE_NAME_DELIMITER)) {
+      sb.append(providerId);
+    } else {
+      sb.append(WAL_FILE_NAME_DELIMITER).append(providerId);
+    }
+    logPrefix = sb.toString();
+
+    getWAL(null);
   }
 
   @Override
   public WAL getWAL(final byte[] identifier) throws IOException {
-   return log;
+    if (log == null) {
+      // only lock when need to create wal, and need to lock since
+      // creating hlog on fs is time consuming
+      synchronized (walCreateLock) {
+        if (log == null) {
+          log = new FSHLog(FSUtils.getWALFileSystem(conf), FSUtils.getWALRootDir(conf),
+              getWALDirectoryName(factory.factoryId), HConstants.HREGION_OLDLOGDIR_NAME, conf,
+              listeners, true, logPrefix,
+              META_WAL_PROVIDER_ID.equals(providerId) ? META_WAL_PROVIDER_ID : null);
+        }
+      }
+    }
+    return log;
   }
 
   @Override
@@ -266,14 +303,10 @@ public class DefaultWALProvider implements WALProvider {
       throw new IllegalArgumentException("parameter conf must be set");
     }
 
-    final String rootDir = conf.get(HConstants.HBASE_DIR);
-    if (rootDir == null || rootDir.isEmpty()) {
-      throw new IllegalArgumentException(HConstants.HBASE_DIR
-          + " key not found in conf.");
-    }
+    final String walDir = FSUtils.getWALRootDir(conf).toString();
 
-    final StringBuilder startPathSB = new StringBuilder(rootDir);
-    if (!rootDir.endsWith("/"))
+    final StringBuilder startPathSB = new StringBuilder(walDir);
+    if (!walDir.endsWith("/"))
       startPathSB.append('/');
     startPathSB.append(HConstants.HREGION_LOGDIR_NAME);
     if (!HConstants.HREGION_LOGDIR_NAME.endsWith("/"))
