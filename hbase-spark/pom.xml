@@ -40,7 +40,6 @@
         <spark.version>${cdh.spark.version}</spark.version>
         <scala.version>2.10.4</scala.version>
         <scala.binary.version>2.10</scala.binary.version>
-        <surefire.skipSecondPart>true</surefire.skipSecondPart>
         <top.dir>${project.basedir}/..</top.dir>
     </properties>
 
@@ -609,17 +608,6 @@
                             <goal>test</goal>
                         </goals>
                         <configuration>
-                            <skipTests>true</skipTests>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>integration-test</id>
-                        <phase>integration-test</phase>
-                        <goals>
-                            <goal>test</goal>
-                        </goals>
-                        <configuration>
-                            <tagsToExclude>Integration-Test</tagsToExclude>
                             <argLine>
                                 -Xmx1536m -XX:MaxPermSize=512m -XX:ReservedCodeCacheSize=512m
                             </argLine>
@@ -694,6 +682,7 @@
             <properties>
                 <surefire.skipFirstPart>true</surefire.skipFirstPart>
                 <surefire.skipSecondPart>true</surefire.skipSecondPart>
+                <skipTests>true</skipTests>
             </properties>
         </profile>
         <profile>
