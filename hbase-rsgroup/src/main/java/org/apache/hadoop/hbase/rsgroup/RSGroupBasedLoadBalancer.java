@@ -1,6 +1,4 @@
 /**
- * Copyright The Apache Software Foundation
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -45,6 +43,7 @@ import org.apache.hadoop.hbase.master.LoadBalancer;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.master.balancer.StochasticLoadBalancer;
+import org.apache.hadoop.hbase.util.Address;
 import org.apache.hadoop.util.ReflectionUtils;
 
 import com.google.common.collect.ArrayListMultimap;
@@ -52,7 +51,6 @@ import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import com.google.common.net.HostAndPort;
 
 /**
  * GroupBasedLoadBalancer, used when Region Server Grouping is configured (HBase-6721)
@@ -131,9 +129,9 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
       for (RSGroupInfo info : RSGroupInfoManager.listRSGroups()) {
         Map<ServerName, List<HRegionInfo>> groupClusterState =
             new HashMap<ServerName, List<HRegionInfo>>();
-        for (HostAndPort sName : info.getServers()) {
+        for (Address sName : info.getServers()) {
           for(ServerName curr: clusterState.keySet()) {
-            if(curr.getHostPort().equals(sName)) {
+            if(curr.getAddress().equals(sName)) {
               groupClusterState.put(curr, correctedState.get(curr));
             }
           }
@@ -266,7 +264,7 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
     if (RSGroupInfo != null) {
       return filterServers(RSGroupInfo.getServers(), onlineServers);
     } else {
-      LOG.debug("Group Information found to be null. Some regions might be unassigned.");
+      LOG.warn("Group Information found to be null. Some regions might be unassigned.");
       return Collections.EMPTY_LIST;
     }
   }
@@ -280,28 +278,17 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
    *          List of servers which are online.
    * @return the list
    */
-  private List<ServerName> filterServers(Collection<HostAndPort> servers,
+  private List<ServerName> filterServers(Collection<Address> servers,
       Collection<ServerName> onlineServers) {
     ArrayList<ServerName> finalList = new ArrayList<ServerName>();
-    for (HostAndPort server : servers) {
+    for (Address server : servers) {
       for(ServerName curr: onlineServers) {
-        if(curr.getHostPort().equals(server)) {
+        if(curr.getAddress().equals(server)) {
           finalList.add(curr);
         }
       }
     }
     return finalList;
-  }
-
-  private ListMultimap<String, HRegionInfo> groupRegions(
-      List<HRegionInfo> regionList) throws IOException {
-    ListMultimap<String, HRegionInfo> regionGroup = ArrayListMultimap
-        .create();
-    for (HRegionInfo region : regionList) {
-      String groupName = RSGroupInfoManager.getRSGroupOfTable(region.getTable());
-      regionGroup.put(groupName, region);
-    }
-    return regionGroup;
   }
 
   private Set<HRegionInfo> getMisplacedRegions(
@@ -312,11 +299,11 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
       RSGroupInfo info =
           RSGroupInfoManager.getRSGroup(RSGroupInfoManager.getRSGroupOfTable(region.getTable()));
       if (assignedServer != null &&
-          (info == null || !info.containsServer(assignedServer.getHostPort()))) {
+          (info == null || !info.containsServer(assignedServer.getAddress()))) {
         LOG.debug("Found misplaced region: " + region.getRegionNameAsString() +
             " on server: " + assignedServer +
             " found in group: " +
-            RSGroupInfoManager.getRSGroupOfServer(assignedServer.getHostPort()) +
+            RSGroupInfoManager.getRSGroupOfServer(assignedServer.getAddress()) +
             " outside of group: " + info.getName());
         misplacedRegions.add(region);
       }
@@ -342,7 +329,7 @@ public class RSGroupBasedLoadBalancer implements RSGroupableBalancer {
           LOG.debug("Group information null for region of table " + region.getTable(),
               exp);
         }
-        if ((info == null) || (!info.containsServer(sName.getHostPort()))) {
+        if ((info == null) || (!info.containsServer(sName.getAddress()))) {
           correctAssignments.get(LoadBalancer.BOGUS_SERVER_NAME).add(region);
         } else {
           correctAssignments.get(sName).add(region);

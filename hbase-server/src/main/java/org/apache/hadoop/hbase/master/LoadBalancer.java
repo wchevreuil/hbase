@@ -21,9 +21,6 @@ package org.apache.hadoop.hbase.master;
 import java.util.List;
 import java.util.Map;
 
-import edu.umd.cs.findbugs.annotations.Nullable;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.conf.ConfigurationObserver;
 import org.apache.hadoop.conf.Configurable;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ClusterStatus;
@@ -31,6 +28,8 @@ import org.apache.hadoop.hbase.HBaseIOException;
 import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.Stoppable;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.conf.ConfigurationObserver;
 
 /**
  * Makes decisions about the placement and movement of Regions across
@@ -52,7 +51,7 @@ import org.apache.hadoop.hbase.Stoppable;
 public interface LoadBalancer extends Configurable, Stoppable, ConfigurationObserver {
 
   //used to signal to the caller that the region(s) cannot be assigned
-  ServerName BOGUS_SERVER_NAME = ServerName.parseServerName("localhost,1,1");
+  ServerName BOGUS_SERVER_NAME = ServerName.parseServerName("bogus.example.com,1,1");
 
   /**
    * Set the current cluster status.  This allows a LoadBalancer to map host name to a server

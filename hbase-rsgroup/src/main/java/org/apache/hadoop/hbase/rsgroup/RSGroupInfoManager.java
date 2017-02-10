@@ -1,6 +1,4 @@
 /**
- * Copyright The Apache Software Foundation
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,21 +18,22 @@
 
 package org.apache.hadoop.hbase.rsgroup;
 
-import com.google.common.net.HostAndPort;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.hadoop.hbase.NamespaceDescriptor;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.util.Bytes;
+import org.apache.hadoop.hbase.util.Address;
 
 /**
  * Interface used to manage RSGroupInfo storage. An implementation
  * has the option to support offline mode.
  * See {@link RSGroupBasedLoadBalancer}
  */
+@InterfaceAudience.Private
 public interface RSGroupInfoManager {
   //Assigned before user tables
   public static final TableName RSGROUP_TABLE_NAME =
@@ -70,7 +69,7 @@ public interface RSGroupInfoManager {
    * @return true if move was successful
    * @throws java.io.IOException on move failure
    */
-  boolean moveServers(Set<HostAndPort> hostPorts,
+  boolean moveServers(Set<Address> hostPorts,
                       String srcGroup, String dstGroup) throws IOException;
 
   /**
@@ -79,7 +78,7 @@ public interface RSGroupInfoManager {
    * @param hostPort the server
    * @return An instance of RSGroupInfo
    */
-  RSGroupInfo getRSGroupOfServer(HostAndPort hostPort) throws IOException;
+  RSGroupInfo getRSGroupOfServer(Address hostPort) throws IOException;
 
   /**
    * Gets the group information.

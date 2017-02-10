@@ -18,8 +18,6 @@
  */
 package org.apache.hadoop.hbase.security.access;
 
-import com.google.common.net.HostAndPort;
-
 import java.io.IOException;
 import java.net.InetAddress;
 import java.security.PrivilegedExceptionAction;
@@ -116,6 +114,7 @@ import org.apache.hadoop.hbase.util.EnvironmentEdgeManager;
 import org.apache.hadoop.hbase.util.Pair;
 import org.apache.hadoop.hbase.util.SimpleMutableByteRange;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.apache.hadoop.hbase.util.Address;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableSet;
@@ -2637,7 +2636,7 @@ public class AccessController extends BaseMasterAndRegionObserver
 
   @Override
   public void preMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx,
-                             Set<HostAndPort> servers, String targetGroup) throws IOException {
+                             Set<Address> servers, String targetGroup) throws IOException {
     requirePermission("moveServers", Action.ADMIN);
   }
 

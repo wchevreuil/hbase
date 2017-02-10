@@ -1,6 +1,4 @@
 /**
- * Copyright The Apache Software Foundation
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,10 +17,13 @@
  */
 package org.apache.hadoop.hbase.rsgroup;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
-import com.google.common.net.HostAndPort;
+import java.io.IOException;
+import java.util.Iterator;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
@@ -37,11 +38,11 @@ import org.apache.hadoop.hbase.Waiter;
 import org.apache.hadoop.hbase.Waiter.Predicate;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.master.HMaster;
-import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.ServerManager;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.AdminProtos;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
+import org.apache.hadoop.hbase.util.Address;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -50,22 +51,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
-import org.mockito.Mockito;
-import org.mockito.invocation.InvocationOnMock;
-import org.mockito.stubbing.Answer;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-import java.io.IOException;
-import java.lang.management.ManagementFactory;
-import java.util.Iterator;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import com.google.common.collect.Sets;
 
 @Category({MediumTests.class})
 public class TestRSGroups extends TestRSGroupsBase {
@@ -104,14 +91,15 @@ public class TestRSGroups extends TestRSGroupsBase {
       }
     });
     admin.setBalancerRunning(false,true);
-    rsGroupAdmin = new VerifyingRSGroupAdminClient(rsGroupAdmin.newClient(TEST_UTIL.getConnection()),
-        TEST_UTIL.getConfiguration());
+    rsGroupAdmin = new VerifyingRSGroupAdminClient(
+        new RSGroupAdminClient(TEST_UTIL.getConnection()), TEST_UTIL.getConfiguration());
     RSGroupAdminEndpoint =
         master.getMasterCoprocessorHost().findCoprocessors(RSGroupAdminEndpoint.class).get(0);
   }
 
   @AfterClass
   public static void tearDown() throws Exception {
+    rsGroupAdmin.close();
     TEST_UTIL.shutdownMiniCluster();
   }
 
@@ -142,7 +130,7 @@ public class TestRSGroups extends TestRSGroupsBase {
 
     try {
       rsGroupAdmin.moveServers(
-          Sets.newHashSet(masterServerName.getHostPort()),
+          Sets.newHashSet(masterServerName.getAddress()),
           "master");
     } catch (Exception ex) {
       // ignore
@@ -254,7 +242,7 @@ public class TestRSGroups extends TestRSGroupsBase {
     final RSGroupInfo defaultGroup = manager.getRSGroup("default");
     // getRSGroup updates default group's server list
     // this process must not affect other threads iterating the list
-    Iterator<HostAndPort> it = defaultGroup.getServers().iterator();
+    Iterator<Address> it = defaultGroup.getServers().iterator();
     manager.getRSGroup("default");
     it.next();
   }

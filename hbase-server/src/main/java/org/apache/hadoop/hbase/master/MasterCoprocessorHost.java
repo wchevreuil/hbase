@@ -19,8 +19,6 @@
 
 package org.apache.hadoop.hbase.master;
 
-import com.google.common.net.HostAndPort;
-
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
@@ -43,6 +41,7 @@ import org.apache.hadoop.hbase.master.procedure.MasterProcedureEnv;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.SnapshotDescription;
 import org.apache.hadoop.hbase.protobuf.generated.QuotaProtos.Quotas;
+import org.apache.hadoop.hbase.util.Address;
 
 /**
  * Provides the coprocessor framework and environment for master oriented
@@ -1161,7 +1160,7 @@ public class MasterCoprocessorHost
     return bypass;
   }
 
-  public void preMoveServers(final Set<HostAndPort> servers, final String targetGroup)
+  public void preMoveServers(final Set<Address> servers, final String targetGroup)
       throws IOException {
     execOperation(coprocessors.isEmpty() ? null : new CoprocessorOperation() {
       @Override
@@ -1174,7 +1173,7 @@ public class MasterCoprocessorHost
     });
   }
 
-  public void postMoveServers(final Set<HostAndPort> servers, final String targetGroup)
+  public void postMoveServers(final Set<Address> servers, final String targetGroup)
       throws IOException {
     execOperation(coprocessors.isEmpty() ? null : new CoprocessorOperation() {
       @Override

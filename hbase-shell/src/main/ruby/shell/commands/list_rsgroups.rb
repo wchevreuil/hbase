@@ -1,6 +1,3 @@
-#
-# Copyright The Apache Software Foundation
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -35,7 +32,7 @@ EOF
 
       def command(regex = '.*')
         now = Time.now
-        formatter.header(['GROUPS'])
+        formatter.header(['REGIONSERVER GROUPS'])
 
         regex = /#{regex}/ unless regex.is_a?(Regexp)
         list = rsgroup_admin.list_rs_groups.grep(regex)

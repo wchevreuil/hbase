@@ -1,6 +1,4 @@
 /**
- * Copyright The Apache Software Foundation
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -21,9 +19,9 @@ package org.apache.hadoop.hbase.rsgroup;
 
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import com.google.common.net.HostAndPort;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.TableName;
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Result;
 import org.apache.hadoop.hbase.client.Scan;
@@ -31,6 +29,7 @@ import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.exceptions.DeserializationException;
 import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.protobuf.generated.RSGroupProtos;
+import org.apache.hadoop.hbase.util.Address;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
 import org.apache.zookeeper.KeeperException;
@@ -42,10 +41,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class VerifyingRSGroupAdminClient extends RSGroupAdmin {
+@InterfaceAudience.Private
+public class VerifyingRSGroupAdminClient implements RSGroupAdmin {
   private Table table;
   private ZooKeeperWatcher zkw;
-  private RSGroupSerDe serDe;
   private RSGroupAdmin wrapped;
 
   public VerifyingRSGroupAdminClient(RSGroupAdmin RSGroupAdmin, Configuration conf)
@@ -53,7 +52,6 @@ public class VerifyingRSGroupAdminClient extends RSGroupAdmin {
     wrapped = RSGroupAdmin;
     table = ConnectionFactory.createConnection(conf).getTable(RSGroupInfoManager.RSGROUP_TABLE_NAME);
     zkw = new ZooKeeperWatcher(conf, this.getClass().getSimpleName(), null);
-    serDe = new RSGroupSerDe();
   }
 
   @Override
@@ -73,7 +71,7 @@ public class VerifyingRSGroupAdminClient extends RSGroupAdmin {
   }
 
   @Override
-  public void moveServers(Set<HostAndPort> servers, String targetGroup) throws IOException {
+  public void moveServers(Set<Address> servers, String targetGroup) throws IOException {
     wrapped.moveServers(servers, targetGroup);
     verify();
   }
@@ -101,7 +99,7 @@ public class VerifyingRSGroupAdminClient extends RSGroupAdmin {
   }
 
   @Override
-  public RSGroupInfo getRSGroupOfServer(HostAndPort hostPort) throws IOException {
+  public RSGroupInfo getRSGroupOfServer(Address hostPort) throws IOException {
     return wrapped.getRSGroupOfServer(hostPort);
   }
 

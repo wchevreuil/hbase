@@ -1,6 +1,3 @@
-#
-# Copyright The Apache Software Foundation
-#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -31,7 +28,7 @@ EOF
 
       def command(server)
         now = Time.now
-        group_name = rsgroup_admin.getGroupOfServer(server).getName
+        group_name = rsgroup_admin.get_rsgroup_of_server(server).getName
         formatter.row([group_name])
         formatter.footer(now, 1)
       end

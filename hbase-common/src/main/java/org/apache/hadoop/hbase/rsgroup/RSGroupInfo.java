@@ -1,6 +1,4 @@
 /**
- * Copyright The Apache Software Foundation
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -21,7 +19,6 @@
 package org.apache.hadoop.hbase.rsgroup;
 
 import com.google.common.collect.Sets;
-import com.google.common.net.HostAndPort;
 
 import java.util.Collection;
 import java.util.NavigableSet;
@@ -30,6 +27,7 @@ import java.util.Set;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
+import org.apache.hadoop.hbase.util.Address;
 
 /**
  * Stores the group information of region server groups.
@@ -37,20 +35,19 @@ import org.apache.hadoop.hbase.classification.InterfaceStability;
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
 public class RSGroupInfo {
-
   public static final String DEFAULT_GROUP = "default";
   public static final String NAMESPACEDESC_PROP_GROUP = "hbase.rsgroup.name";
 
   private String name;
-  private Set<HostAndPort> servers;
+  private Set<Address> servers;
   private NavigableSet<TableName> tables;
 
   public RSGroupInfo(String name) {
-    this(name, Sets.<HostAndPort>newHashSet(), Sets.<TableName>newTreeSet());
+    this(name, Sets.<Address>newHashSet(), Sets.<TableName>newTreeSet());
   }
 
   RSGroupInfo(String name,
-              Set<HostAndPort> servers,
+              Set<Address> servers,
               NavigableSet<TableName> tables) {
     this.name = name;
     this.servers = servers;
@@ -77,7 +74,7 @@ public class RSGroupInfo {
    *
    * @param hostPort the server
    */
-  public void addServer(HostAndPort hostPort){
+  public void addServer(Address hostPort){
     servers.add(hostPort);
   }
 
@@ -86,7 +83,7 @@ public class RSGroupInfo {
    *
    * @param hostPort the servers
    */
-  public void addAllServers(Collection<HostAndPort> hostPort){
+  public void addAllServers(Collection<Address> hostPort){
     servers.addAll(hostPort);
   }
 
@@ -94,7 +91,7 @@ public class RSGroupInfo {
    * @param hostPort hostPort of the server
    * @return true, if a server with hostPort is found
    */
-  public boolean containsServer(HostAndPort hostPort) {
+  public boolean containsServer(Address hostPort) {
     return servers.contains(hostPort);
   }
 
@@ -103,7 +100,7 @@ public class RSGroupInfo {
    *
    * @return set of servers
    */
-  public Set<HostAndPort> getServers() {
+  public Set<Address> getServers() {
     return servers;
   }
 
@@ -112,7 +109,7 @@ public class RSGroupInfo {
    *
    * @param hostPort HostPort of the server to remove
    */
-  public boolean removeServer(HostAndPort hostPort) {
+  public boolean removeServer(Address hostPort) {
     return servers.remove(hostPort);
   }
 
@@ -183,5 +180,4 @@ public class RSGroupInfo {
     result = 31 * result + name.hashCode();
     return result;
   }
-
 }

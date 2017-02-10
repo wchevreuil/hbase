@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.Waiter;
 import org.apache.hadoop.hbase.testclassification.IntegrationTests;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.experimental.categories.Category;
 
 /**
@@ -37,11 +38,11 @@ import org.junit.experimental.categories.Category;
 public class IntegrationTestRSGroup extends TestRSGroupsBase {
   //Integration specific
   private final static Log LOG = LogFactory.getLog(IntegrationTestRSGroup.class);
-  private static boolean initialized = false;
+  private static boolean INITIALIZED = false;
 
-  @Before
+  @BeforeClass
   public void beforeMethod() throws Exception {
-    if(!initialized) {
+    if(!INITIALIZED) {
       LOG.info("Setting up IntegrationTestGroup");
       LOG.info("Initializing cluster with " + NUM_SLAVES_BASE + " servers");
       TEST_UTIL = new IntegrationTestingUtility();
@@ -49,10 +50,10 @@ public class IntegrationTestRSGroup extends TestRSGroupsBase {
       //set shared configs
       admin = TEST_UTIL.getHBaseAdmin();
       cluster = TEST_UTIL.getHBaseClusterInterface();
-      rsGroupAdmin = new VerifyingRSGroupAdminClient(rsGroupAdmin.newClient(TEST_UTIL.getConnection()),
+      rsGroupAdmin = new VerifyingRSGroupAdminClient(new RSGroupAdminClient(TEST_UTIL.getConnection()),
           TEST_UTIL.getConfiguration());
       LOG.info("Done initializing cluster");
-      initialized = true;
+      INITIALIZED = true;
       //cluster may not be clean
       //cleanup when initializing
       afterMethod();
@@ -62,6 +63,7 @@ public class IntegrationTestRSGroup extends TestRSGroupsBase {
   @After
   public void afterMethod() throws Exception {
     LOG.info("Cleaning up previous test run");
+    rsGroupAdmin.close();
     //cleanup previous artifacts
     deleteTableIfNecessary();
     deleteNamespaceIfNecessary();
