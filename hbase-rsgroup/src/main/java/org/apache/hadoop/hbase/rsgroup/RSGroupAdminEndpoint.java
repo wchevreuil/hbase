@@ -1,4 +1,6 @@
 /**
+ * Copyright The Apache Software Foundation
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,11 +20,19 @@
 
 package org.apache.hadoop.hbase.rsgroup;
 
+import com.google.common.collect.Sets;
+import com.google.common.net.HostAndPort;
+import com.google.protobuf.RpcCallback;
+import com.google.protobuf.RpcController;
+import com.google.protobuf.Service;
+
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.Coprocessor;
 import org.apache.hadoop.hbase.CoprocessorEnvironment;
 import org.apache.hadoop.hbase.HColumnDescriptor;
@@ -33,7 +43,6 @@ import org.apache.hadoop.hbase.NamespaceDescriptor;
 import org.apache.hadoop.hbase.ProcedureInfo;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.constraint.ConstraintException;
 import org.apache.hadoop.hbase.coprocessor.CoprocessorService;
 import org.apache.hadoop.hbase.coprocessor.MasterCoprocessorEnvironment;
@@ -68,16 +77,12 @@ import org.apache.hadoop.hbase.protobuf.generated.RSGroupAdminProtos.MoveTablesR
 import org.apache.hadoop.hbase.protobuf.generated.RSGroupAdminProtos.RSGroupAdminService;
 import org.apache.hadoop.hbase.protobuf.generated.RSGroupAdminProtos.RemoveRSGroupRequest;
 import org.apache.hadoop.hbase.protobuf.generated.RSGroupAdminProtos.RemoveRSGroupResponse;
-import org.apache.hadoop.hbase.util.Address;
 
-import com.google.common.collect.Sets;
-import com.google.protobuf.RpcCallback;
-import com.google.protobuf.RpcController;
-import com.google.protobuf.Service;
 
-@InterfaceAudience.Private
 public class RSGroupAdminEndpoint extends RSGroupAdminService
     implements CoprocessorService, Coprocessor, MasterObserver {
+
+  private static final Log LOG = LogFactory.getLog(RSGroupAdminEndpoint.class);
   private MasterServices master = null;
 
   private static RSGroupInfoManagerImpl groupInfoManager;
@@ -113,94 +118,112 @@ public class RSGroupAdminEndpoint extends RSGroupAdminService
   public void getRSGroupInfo(RpcController controller,
                            GetRSGroupInfoRequest request,
                            RpcCallback<GetRSGroupInfoResponse> done) {
-    GetRSGroupInfoResponse.Builder builder = GetRSGroupInfoResponse.newBuilder();
+    GetRSGroupInfoResponse response = null;
     try {
+      GetRSGroupInfoResponse.Builder builder =
+          GetRSGroupInfoResponse.newBuilder();
       RSGroupInfo RSGroupInfo = groupAdminServer.getRSGroupInfo(request.getRSGroupName());
       if(RSGroupInfo != null) {
         builder.setRSGroupInfo(ProtobufUtil.toProtoGroupInfo(RSGroupInfo));
       }
+      response = builder.build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
     }
-    done.run(builder.build());
+    done.run(response);
   }
 
   @Override
   public void getRSGroupInfoOfTable(RpcController controller,
                                   GetRSGroupInfoOfTableRequest request,
                                   RpcCallback<GetRSGroupInfoOfTableResponse> done) {
-    GetRSGroupInfoOfTableResponse.Builder builder = GetRSGroupInfoOfTableResponse.newBuilder();
+    GetRSGroupInfoOfTableResponse response = null;
     try {
+      GetRSGroupInfoOfTableResponse.Builder builder =
+          GetRSGroupInfoOfTableResponse.newBuilder();
       TableName tableName = ProtobufUtil.toTableName(request.getTableName());
       RSGroupInfo RSGroupInfo = groupAdminServer.getRSGroupInfoOfTable(tableName);
-      if (RSGroupInfo != null) {
-        builder.setRSGroupInfo(ProtobufUtil.toProtoGroupInfo(RSGroupInfo));
+      if (RSGroupInfo == null) {
+        response = builder.build();
+      } else {
+        response = builder.setRSGroupInfo(ProtobufUtil.toProtoGroupInfo(RSGroupInfo)).build();
       }
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
     }
-    done.run(builder.build());
+    done.run(response);
   }
 
   @Override
   public void moveServers(RpcController controller,
                           MoveServersRequest request,
                           RpcCallback<MoveServersResponse> done) {
-    RSGroupAdminProtos.MoveServersResponse.Builder builder =
-        RSGroupAdminProtos.MoveServersResponse.newBuilder();
+    RSGroupAdminProtos.MoveServersResponse response = null;
     try {
-      Set<Address> hostPorts = Sets.newHashSet();
+      RSGroupAdminProtos.MoveServersResponse.Builder builder =
+          RSGroupAdminProtos.MoveServersResponse.newBuilder();
+      Set<HostAndPort> hostPorts = Sets.newHashSet();
       for(HBaseProtos.ServerName el: request.getServersList()) {
-        hostPorts.add(Address.fromParts(el.getHostName(), el.getPort()));
+        hostPorts.add(HostAndPort.fromParts(el.getHostName(), el.getPort()));
       }
       groupAdminServer.moveServers(hostPorts, request.getTargetGroup());
+      response = builder.build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
     }
-    done.run(builder.build());
+    done.run(response);
   }
 
   @Override
   public void moveTables(RpcController controller,
                          MoveTablesRequest request,
                          RpcCallback<MoveTablesResponse> done) {
-    MoveTablesResponse.Builder builder = MoveTablesResponse.newBuilder();
+    MoveTablesResponse response = null;
     try {
+      MoveTablesResponse.Builder builder =
+          MoveTablesResponse.newBuilder();
       Set<TableName> tables = new HashSet<TableName>(request.getTableNameList().size());
       for(HBaseProtos.TableName tableName: request.getTableNameList()) {
         tables.add(ProtobufUtil.toTableName(tableName));
       }
       groupAdminServer.moveTables(tables, request.getTargetGroup());
+      response = builder.build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
     }
-    done.run(builder.build());
+    done.run(response);
   }
 
   @Override
   public void addRSGroup(RpcController controller,
                        AddRSGroupRequest request,
                        RpcCallback<AddRSGroupResponse> done) {
-    AddRSGroupResponse.Builder builder = AddRSGroupResponse.newBuilder();
+    AddRSGroupResponse response = null;
     try {
+      AddRSGroupResponse.Builder builder =
+          AddRSGroupResponse.newBuilder();
       groupAdminServer.addRSGroup(request.getRSGroupName());
+      response = builder.build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
     }
-    done.run(builder.build());
+    done.run(response);
   }
 
   @Override
   public void removeRSGroup(RpcController controller,
                           RemoveRSGroupRequest request,
                           RpcCallback<RemoveRSGroupResponse> done) {
-    RemoveRSGroupResponse.Builder builder = RemoveRSGroupResponse.newBuilder();
+    RemoveRSGroupResponse response = null;
     try {
+      RemoveRSGroupResponse.Builder builder =
+          RemoveRSGroupResponse.newBuilder();
       groupAdminServer.removeRSGroup(request.getRSGroupName());
+      response = builder.build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
     }
-    done.run(builder.build());
+    done.run(response);
   }
 
   @Override
@@ -221,15 +244,18 @@ public class RSGroupAdminEndpoint extends RSGroupAdminService
   public void listRSGroupInfos(RpcController controller,
                              ListRSGroupInfosRequest request,
                              RpcCallback<ListRSGroupInfosResponse> done) {
-    ListRSGroupInfosResponse.Builder builder = ListRSGroupInfosResponse.newBuilder();
+    ListRSGroupInfosResponse response = null;
     try {
+      ListRSGroupInfosResponse.Builder builder =
+          ListRSGroupInfosResponse.newBuilder();
       for(RSGroupInfo RSGroupInfo : groupAdminServer.listRSGroups()) {
         builder.addRSGroupInfo(ProtobufUtil.toProtoGroupInfo(RSGroupInfo));
       }
+      response = builder.build();
     } catch (IOException e) {
       ResponseConverter.setControllerException(controller, e);
     }
-    done.run(builder.build());
+    done.run(response);
   }
 
   @Override
@@ -238,8 +264,8 @@ public class RSGroupAdminEndpoint extends RSGroupAdminService
                                    RpcCallback<GetRSGroupInfoOfServerResponse> done) {
     GetRSGroupInfoOfServerResponse.Builder builder = GetRSGroupInfoOfServerResponse.newBuilder();
     try {
-      Address hp =
-          Address.fromParts(request.getServer().getHostName(), request.getServer().getPort());
+      HostAndPort hp =
+          HostAndPort.fromParts(request.getServer().getHostName(), request.getServer().getPort());
       RSGroupInfo RSGroupInfo = groupAdminServer.getRSGroupOfServer(hp);
       if (RSGroupInfo != null) {
         builder.setRSGroupInfo(ProtobufUtil.toProtoGroupInfo(RSGroupInfo));
@@ -768,14 +794,12 @@ public class RSGroupAdminEndpoint extends RSGroupAdminService
   }
 
   @Override
-  public void preMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      Set<Address>
+  public void preMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx, Set<HostAndPort>
       servers, String targetGroup) throws IOException {
   }
 
   @Override
-  public void postMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx,
-      Set<Address>
+  public void postMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx, Set<HostAndPort>
       servers, String targetGroup) throws IOException {
   }
 

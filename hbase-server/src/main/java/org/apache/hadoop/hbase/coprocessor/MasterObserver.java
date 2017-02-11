@@ -19,6 +19,8 @@
 
 package org.apache.hadoop.hbase.coprocessor;
 
+import com.google.common.net.HostAndPort;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
@@ -39,7 +41,6 @@ import org.apache.hadoop.hbase.master.procedure.MasterProcedureEnv;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.SnapshotDescription;
 import org.apache.hadoop.hbase.protobuf.generated.QuotaProtos.Quotas;
-import org.apache.hadoop.hbase.util.Address;
 
 /**
  * Defines coprocessor hooks for interacting with operations on the
@@ -1015,7 +1016,7 @@ public interface MasterObserver extends Coprocessor {
    * @throws IOException on failure
    */
   void preMoveServers(final ObserverContext<MasterCoprocessorEnvironment> ctx,
-                      Set<Address> servers, String targetGroup) throws IOException;
+                      Set<HostAndPort> servers, String targetGroup) throws IOException;
 
   /**
    * Called after servers are moved to target region server group
@@ -1025,7 +1026,7 @@ public interface MasterObserver extends Coprocessor {
    * @throws IOException on failure
    */
   void postMoveServers(final ObserverContext<MasterCoprocessorEnvironment> ctx,
-                       Set<Address> servers, String targetGroup) throws IOException;
+                       Set<HostAndPort> servers, String targetGroup) throws IOException;
 
   /**
    * Called before tables are moved to target region server group

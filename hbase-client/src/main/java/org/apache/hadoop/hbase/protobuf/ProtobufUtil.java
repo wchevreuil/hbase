@@ -21,6 +21,7 @@ package org.apache.hadoop.hbase.protobuf;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
+import com.google.common.net.HostAndPort;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -155,7 +156,6 @@ import org.apache.hadoop.hbase.security.access.UserPermission;
 import org.apache.hadoop.hbase.security.token.AuthenticationTokenIdentifier;
 import org.apache.hadoop.hbase.security.visibility.Authorizations;
 import org.apache.hadoop.hbase.security.visibility.CellVisibility;
-import org.apache.hadoop.hbase.util.Address;
 import org.apache.hadoop.hbase.util.ByteStringer;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.DynamicClassLoader;
@@ -3326,7 +3326,7 @@ public final class ProtobufUtil {
   public static RSGroupInfo toGroupInfo(RSGroupProtos.RSGroupInfo proto) {
     RSGroupInfo RSGroupInfo = new RSGroupInfo(proto.getName());
     for(HBaseProtos.ServerName el: proto.getServersList()) {
-      RSGroupInfo.addServer(Address.fromParts(el.getHostName(), el.getPort()));
+      RSGroupInfo.addServer(HostAndPort.fromParts(el.getHostName(), el.getPort()));
     }
     for(HBaseProtos.TableName pTableName: proto.getTablesList()) {
       RSGroupInfo.addTable(ProtobufUtil.toTableName(pTableName));
@@ -3342,9 +3342,9 @@ public final class ProtobufUtil {
     }
     List<HBaseProtos.ServerName> hostports =
         new ArrayList<HBaseProtos.ServerName>(pojo.getServers().size());
-    for(Address el: pojo.getServers()) {
+    for(HostAndPort el: pojo.getServers()) {
       hostports.add(HBaseProtos.ServerName.newBuilder()
-          .setHostName(el.getHostname())
+          .setHostName(el.getHostText())
           .setPort(el.getPort())
           .build());
     }

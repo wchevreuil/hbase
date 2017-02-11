@@ -49,6 +49,23 @@
           <skipAssembly>true</skipAssembly>
         </configuration>
       </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <!-- Always skip the second part executions, since we only run
+          simple unit tests in this module -->
+        <executions>
+          <execution>
+            <id>secondPartTestsExecution</id>
+            <phase>test</phase>
+            <goals>
+              <goal>test</goal>
+            </goals>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <!-- Make a jar and put the sources in the jar -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -116,6 +133,11 @@
     <dependency>
       <groupId>org.apache.hbase</groupId>
       <artifactId>hbase-common</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-common</artifactId>
+      <type>test-jar</type>
     </dependency>
     <dependency>
       <groupId>org.apache.hbase</groupId>
@@ -204,7 +226,7 @@
         <surefire.skipFirstPart>true</surefire.skipFirstPart>
       </properties>
     </profile>
-    <!-- profile against Hadoop 1.0.x. It has to have the same
+    <!-- profile against Hadoop 1.0.x: This is the default. It has to have the same
  activation property as the parent Hadoop 1.0.x profile to make sure it gets run at
  the same time. -->
     <profile>

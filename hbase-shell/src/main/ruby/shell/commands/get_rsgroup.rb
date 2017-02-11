@@ -1,3 +1,6 @@
+#
+# Copyright The Apache Software Foundation
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -30,8 +33,8 @@ EOF
 
       def command(group_name)
         now = Time.now
-        formatter.header(['REGIONSERVER GROUP INFORMATION'])
-        rsgroup_admin.get_rsgroup(group_name) do |s|
+        formatter.header(['GROUP INFORMATION'])
+        group_admin.get_rsgroup(group_name) do |s|
           formatter.row([s])
         end
         formatter.footer(now)

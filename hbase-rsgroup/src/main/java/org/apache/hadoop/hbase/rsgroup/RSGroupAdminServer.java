@@ -1,4 +1,6 @@
 /**
+ * Copyright The Apache Software Foundation
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -20,6 +22,7 @@ package org.apache.hadoop.hbase.rsgroup;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.common.net.HostAndPort;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,74 +54,67 @@ import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.master.RegionState;
 import org.apache.hadoop.hbase.master.ServerManager;
 import org.apache.hadoop.hbase.master.TableLockManager.TableLock;
-import org.apache.hadoop.hbase.util.Address;
 
 /**
- * Service to support Region Server Grouping (HBase-6721).
+ * Service to support Region Server Grouping (HBase-6721)
  */
 @InterfaceAudience.Private
-public class RSGroupAdminServer implements RSGroupAdmin {
+public class RSGroupAdminServer extends RSGroupAdmin {
   private static final Log LOG = LogFactory.getLog(RSGroupAdminServer.class);
 
   private MasterServices master;
   //List of servers that are being moved from one group to another
   //Key=host:port,Value=targetGroup
-  private ConcurrentMap<Address,String> serversInTransition =
-      new ConcurrentHashMap<Address, String>();
-  private RSGroupInfoManager rsGroupInfoManager;
+  private ConcurrentMap<HostAndPort,String> serversInTransition =
+      new ConcurrentHashMap<HostAndPort, String>();
+  private RSGroupInfoManager RSGroupInfoManager;
 
   public RSGroupAdminServer(MasterServices master,
                             RSGroupInfoManager RSGroupInfoManager) throws IOException {
     this.master = master;
-    this.rsGroupInfoManager = RSGroupInfoManager;
+    this.RSGroupInfoManager = RSGroupInfoManager;
   }
 
   @Override
   public RSGroupInfo getRSGroupInfo(String groupName) throws IOException {
-    RSGroupInfoManager m = getRSGroupInfoManager();
-    synchronized (m) {
-      return m.getRSGroup(groupName);
-    }
+    return getRSGroupInfoManager().getRSGroup(groupName);
   }
+
 
   @Override
   public RSGroupInfo getRSGroupInfoOfTable(TableName tableName) throws IOException {
-    RSGroupInfoManager m = getRSGroupInfoManager();
-    String groupName = null;
-    synchronized (m) {
-      groupName = getRSGroupInfoManager().getRSGroupOfTable(tableName);
-      return groupName == null? null: getRSGroupInfoManager().getRSGroup(groupName);
+    String groupName = getRSGroupInfoManager().getRSGroupOfTable(tableName);
+    if (groupName == null) {
+      return null;
     }
-  }
-
-  private RSGroupInfo getAndCheckRSGroup(String name)
-  throws IOException {
-    if (StringUtils.isEmpty(name)) {
-      throw new ConstraintException("The target group cannot be null.");
-    }
-    RSGroupInfo rsgi = getRSGroupInfo(name);
-    if (rsgi == null) {
-      throw new ConstraintException("Group does not exist: " + name);
-    }
-    return rsgi;
+    return getRSGroupInfoManager().getRSGroup(groupName);
   }
 
   @Override
-  public void moveServers(Set<Address> servers, String targetGroupName)
+  public void moveServers(Set<HostAndPort> servers, String targetGroupName)
       throws IOException {
     if (servers == null) {
-      throw new ConstraintException("The list of servers cannot be null.");
+      throw new ConstraintException(
+          "The list of servers cannot be null.");
+    }
+    if (StringUtils.isEmpty(targetGroupName)) {
+      throw new ConstraintException("The target group cannot be null.");
     }
     if (servers.size() < 1) {
       return;
     }
-    RSGroupInfo targetGrp = getAndCheckRSGroup(targetGroupName);
+
+    RSGroupInfo targetGrp = getRSGroupInfo(targetGroupName);
+    if (targetGrp == null) {
+      throw new ConstraintException("Group does not exist: "+targetGroupName);
+    }
+
     RSGroupInfoManager manager = getRSGroupInfoManager();
     synchronized (manager) {
       if (master.getMasterCoprocessorHost() != null) {
         master.getMasterCoprocessorHost().preMoveServers(servers, targetGroupName);
       }
-      Address firstServer = servers.iterator().next();
+      HostAndPort firstServer = servers.iterator().next();
       //we only allow a move from a single source group
       //so this should be ok
       RSGroupInfo srcGrp = manager.getRSGroupOfServer(firstServer);
@@ -130,11 +126,11 @@ public class RSGroupAdminServer implements RSGroupAdmin {
             "Server "+firstServer+" does not have a group.");
       }
       if (RSGroupInfo.DEFAULT_GROUP.equals(srcGrp.getName())) {
-        Set<Address> onlineServers = new HashSet<Address>();
+        Set<HostAndPort> onlineServers = new HashSet<HostAndPort>();
         for(ServerName server: master.getServerManager().getOnlineServers().keySet()) {
-          onlineServers.add(server.getAddress());
+          onlineServers.add(server.getHostPort());
         }
-        for(Address el: servers) {
+        for(HostAndPort el: servers) {
           if(!onlineServers.contains(el)) {
             throw new ConstraintException(
                 "Server "+el+" is not an online server in default group.");
@@ -150,12 +146,11 @@ public class RSGroupAdminServer implements RSGroupAdmin {
 
       String sourceGroupName = getRSGroupInfoManager()
           .getRSGroupOfServer(srcGrp.getServers().iterator().next()).getName();
-      getAndCheckRSGroup(sourceGroupName);
-      if (sourceGroupName.equals(targetGroupName)) {
-        throw new ConstraintException(
-            "Target group is the same as source group: "+targetGroupName);
+      if(getRSGroupInfo(targetGroupName) == null) {
+        throw new ConstraintException("Target group does not exist: "+targetGroupName);
       }
-      for (Address server: servers) {
+
+      for(HostAndPort server: servers) {
         if (serversInTransition.containsKey(server)) {
           throw new ConstraintException(
               "Server list contains a server that is already being moved: "+server);
@@ -168,33 +163,36 @@ public class RSGroupAdminServer implements RSGroupAdmin {
         }
       }
 
+      if(sourceGroupName.equals(targetGroupName)) {
+        throw new ConstraintException(
+            "Target group is the same as source group: "+targetGroupName);
+      }
+
       try {
         //update the servers as in transition
-        for (Address server : servers) {
+        for (HostAndPort server : servers) {
           serversInTransition.put(server, targetGroupName);
         }
 
         getRSGroupInfoManager().moveServers(servers, sourceGroupName, targetGroupName);
         boolean found;
-        // Appy makes note that if we were passed in a List of servers,
-        // we'd save having to do stuff like the below.
-        List<Address> tmpServers = Lists.newArrayList(servers);
+        List<HostAndPort> tmpServers = Lists.newArrayList(servers);
         do {
           found = false;
-          for (Iterator<Address> iter = tmpServers.iterator();
+          for (Iterator<HostAndPort> iter = tmpServers.iterator();
                iter.hasNext(); ) {
-            Address rs = iter.next();
+            HostAndPort rs = iter.next();
             //get online regions
             List<HRegionInfo> regions = new LinkedList<HRegionInfo>();
             for (Map.Entry<HRegionInfo, ServerName> el :
                 master.getAssignmentManager().getRegionStates().getRegionAssignments().entrySet()) {
-              if (el.getValue().getAddress().equals(rs)) {
+              if (el.getValue().getHostPort().equals(rs)) {
                 regions.add(el.getKey());
               }
             }
             for (RegionState state :
                 master.getAssignmentManager().getRegionStates().getRegionsInTransition().values()) {
-              if (state.getServerName().getAddress().equals(rs)) {
+              if (state.getServerName().getHostPort().equals(rs)) {
                 regions.add(state.getRegion());
               }
             }
@@ -226,7 +224,7 @@ public class RSGroupAdminServer implements RSGroupAdmin {
         } while (found);
       } finally {
         //remove from transition
-        for (Address server : servers) {
+        for (HostAndPort server : servers) {
           serversInTransition.remove(server);
         }
       }
@@ -294,10 +292,7 @@ public class RSGroupAdminServer implements RSGroupAdmin {
     if (master.getMasterCoprocessorHost() != null) {
       master.getMasterCoprocessorHost().preAddRSGroup(name);
     }
-    RSGroupInfoManager m = getRSGroupInfoManager();
-    synchronized(m) {
-      m.addRSGroup(new RSGroupInfo(name));
-    }
+    getRSGroupInfoManager().addRSGroup(new RSGroupInfo(name));
     if (master.getMasterCoprocessorHost() != null) {
       master.getMasterCoprocessorHost().postAddRSGroup(name);
     }
@@ -398,26 +393,17 @@ public class RSGroupAdminServer implements RSGroupAdmin {
 
   @Override
   public List<RSGroupInfo> listRSGroups() throws IOException {
-    RSGroupInfoManager m = getRSGroupInfoManager();
-    synchronized (m) {
-      return m.listRSGroups();
-    }
+    return getRSGroupInfoManager().listRSGroups();
   }
 
   @Override
-  public RSGroupInfo getRSGroupOfServer(Address hostPort) throws IOException {
-    RSGroupInfoManager m = getRSGroupInfoManager();
-    synchronized (m) {
-      return m.getRSGroupOfServer(hostPort);
-    }
+  public RSGroupInfo getRSGroupOfServer(HostAndPort hostPort) throws IOException {
+    return getRSGroupInfoManager().getRSGroupOfServer(hostPort);
   }
 
   @InterfaceAudience.Private
-  // Private because the client needs to be careful using rsGroupInfoManager;
-  // All modifications on rsGroupInfoManager must be under a synchronize on
-  // rsGroupInfoManager
-  private RSGroupInfoManager getRSGroupInfoManager() throws IOException {
-    return rsGroupInfoManager;
+  public RSGroupInfoManager getRSGroupInfoManager() throws IOException {
+    return RSGroupInfoManager;
   }
 
   private Map<String, RegionState> rsGroupGetRegionsInTransition(String groupName)
@@ -460,7 +446,7 @@ public class RSGroupAdminServer implements RSGroupAdmin {
 
     Map<ServerName, List<HRegionInfo>> serverMap = Maps.newHashMap();
     for(ServerName serverName: master.getServerManager().getOnlineServers().keySet()) {
-      if(RSGroupInfo.getServers().contains(serverName.getAddress())) {
+      if(RSGroupInfo.getServers().contains(serverName.getHostPort())) {
         serverMap.put(serverName, Collections.EMPTY_LIST);
       }
     }

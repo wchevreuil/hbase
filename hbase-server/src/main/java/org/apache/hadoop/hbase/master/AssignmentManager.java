@@ -129,7 +129,7 @@ public class AssignmentManager extends ZooKeeperListener {
   private static final Log LOG = LogFactory.getLog(AssignmentManager.class);
 
   public static final ServerName HBCK_CODE_SERVERNAME = ServerName.valueOf(HConstants.HBCK_CODE_NAME,
-      0, -1L);
+      -1, -1L);
 
   static final String ALREADY_IN_TRANSITION_WAITTIME
     = "hbase.assignment.already.intransition.waittime";

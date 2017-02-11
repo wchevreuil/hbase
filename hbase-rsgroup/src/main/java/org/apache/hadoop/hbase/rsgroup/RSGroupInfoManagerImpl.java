@@ -1,4 +1,6 @@
 /**
+ * Copyright The Apache Software Foundation
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -22,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 import com.google.common.collect.Sets;
+import com.google.common.net.HostAndPort;
 import com.google.protobuf.ServiceException;
 
 import java.io.IOException;
@@ -51,7 +54,6 @@ import org.apache.hadoop.hbase.HRegionInfo;
 import org.apache.hadoop.hbase.HTableDescriptor;
 import org.apache.hadoop.hbase.MetaTableAccessor;
 import org.apache.hadoop.hbase.MetaTableAccessor.DefaultVisitorBase;
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.NamespaceDescriptor;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
@@ -79,7 +81,6 @@ import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos;
 import org.apache.hadoop.hbase.regionserver.DisabledRegionSplitPolicy;
 import org.apache.hadoop.hbase.security.access.AccessControlLists;
 import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.hadoop.hbase.util.Address;
 import org.apache.hadoop.hbase.util.ModifyRegionUtils;
 import org.apache.hadoop.hbase.zookeeper.ZKUtil;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
@@ -90,12 +91,7 @@ import org.apache.zookeeper.KeeperException;
  * use of an HBase table as the persistence store for the group information.
  * It also makes use of zookeeper to store group information needed
  * for bootstrapping during offline mode.
- * 
- * <p>Only one modifier is allowed at a time so all access is synchronized.
- * We do this to protect data member Maps but also so only one writer of
- * persisted state out to zk where we keep cache.
  */
-@InterfaceAudience.Private
 public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListener {
   private static final Log LOG = LogFactory.getLog(RSGroupInfoManagerImpl.class);
 
@@ -161,7 +157,7 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
   }
 
   @Override
-  public synchronized boolean moveServers(Set<Address> hostPorts, String srcGroup,
+  public synchronized boolean moveServers(Set<HostAndPort> hostPorts, String srcGroup,
                                           String dstGroup) throws IOException {
     if (!rsGroupMap.containsKey(srcGroup)) {
       throw new DoNotRetryIOException("Group "+srcGroup+" does not exist");
@@ -173,7 +169,7 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
     RSGroupInfo src = new RSGroupInfo(getRSGroup(srcGroup));
     RSGroupInfo dst = new RSGroupInfo(getRSGroup(dstGroup));
     boolean foundOne = false;
-    for(Address el: hostPorts) {
+    for(HostAndPort el: hostPorts) {
       foundOne = src.removeServer(el) || foundOne;
       dst.addServer(el);
     }
@@ -193,8 +189,7 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
    * @return An instance of GroupInfo.
    */
   @Override
-  public synchronized RSGroupInfo getRSGroupOfServer(Address hostPort)
-  throws IOException {
+  public RSGroupInfo getRSGroupOfServer(HostAndPort hostPort) throws IOException {
     for (RSGroupInfo info : rsGroupMap.values()) {
       if (info.containsServer(hostPort)){
         return info;
@@ -211,14 +206,15 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
    * @return An instance of GroupInfo
    */
   @Override
-  public synchronized RSGroupInfo getRSGroup(String groupName) throws IOException {
-    return this.rsGroupMap.get(groupName);
+  public RSGroupInfo getRSGroup(String groupName) throws IOException {
+    RSGroupInfo RSGroupInfo = rsGroupMap.get(groupName);
+    return RSGroupInfo;
   }
 
 
 
   @Override
-  public synchronized String getRSGroupOfTable(TableName tableName) throws IOException {
+  public String getRSGroupOfTable(TableName tableName) throws IOException {
     return tableMap.get(tableName);
   }
 
@@ -264,12 +260,13 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
   }
 
   @Override
-  public synchronized List<RSGroupInfo> listRSGroups() throws IOException {
-    return Lists.newLinkedList(rsGroupMap.values());
+  public List<RSGroupInfo> listRSGroups() throws IOException {
+    List<RSGroupInfo> list = Lists.newLinkedList(rsGroupMap.values());
+    return list;
   }
 
   @Override
-  public synchronized boolean isOnline() {
+  public boolean isOnline() {
     return rsGroupStartupWorker.isOnline();
   }
 
@@ -328,6 +325,7 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
     groupList.add(new RSGroupInfo(RSGroupInfo.DEFAULT_GROUP,
         Sets.newHashSet(getDefaultServers()),
         orphanTables));
+
 
     // populate the data
     HashMap<String, RSGroupInfo> newGroupMap = Maps.newHashMap();
@@ -454,10 +452,10 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
     }
   }
 
-  private List<Address> getDefaultServers() throws IOException {
-    List<Address> defaultServers = new LinkedList<>();
+  private List<HostAndPort> getDefaultServers() throws IOException {
+    List<HostAndPort> defaultServers = new LinkedList<HostAndPort>();
     for(ServerName server : getOnlineRS()) {
-      Address hostPort = Address.fromParts(server.getHostname(), server.getPort());
+      HostAndPort hostPort = HostAndPort.fromParts(server.getHostname(), server.getPort());
       boolean found = false;
       for(RSGroupInfo RSGroupInfo : rsGroupMap.values()) {
         if(!RSGroupInfo.DEFAULT_GROUP.equals(RSGroupInfo.getName()) &&
@@ -474,7 +472,7 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
   }
 
   private synchronized void updateDefaultServers(
-      Set<Address> hostPort) throws IOException {
+      Set<HostAndPort> hostPort) throws IOException {
     RSGroupInfo info = rsGroupMap.get(RSGroupInfo.DEFAULT_GROUP);
     RSGroupInfo newInfo = new RSGroupInfo(info.getName(), hostPort, info.getTables());
     HashMap<String, RSGroupInfo> newGroupMap = Maps.newHashMap(rsGroupMap);
@@ -484,13 +482,11 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
 
   @Override
   public void serverAdded(ServerName serverName) {
-    // #serverChanged is internally synchronized
     defaultServerUpdater.serverChanged();
   }
 
   @Override
   public void serverRemoved(ServerName serverName) {
-    // #serverChanged is internally synchronized
     defaultServerUpdater.serverChanged();
   }
 
@@ -505,15 +501,15 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
 
     @Override
     public void run() {
-      List<Address> prevDefaultServers = new LinkedList<>();
+      List<HostAndPort> prevDefaultServers = new LinkedList<HostAndPort>();
       while(!mgr.master.isAborted() || !mgr.master.isStopped()) {
         try {
           LOG.info("Updating default servers.");
-          List<Address> servers = mgr.getDefaultServers();
-          Collections.sort(servers, new Comparator<Address>() {
+          List<HostAndPort> servers = mgr.getDefaultServers();
+          Collections.sort(servers, new Comparator<HostAndPort>() {
             @Override
-            public int compare(Address o1, Address o2) {
-              int diff = o1.getHostname().compareTo(o2.getHostname());
+            public int compare(HostAndPort o1, HostAndPort o2) {
+              int diff = o1.getHostText().compareTo(o2.getHostText());
               if (diff != 0) {
                 return diff;
               }
@@ -521,7 +517,7 @@ public class RSGroupInfoManagerImpl implements RSGroupInfoManager, ServerListene
             }
           });
           if(!servers.equals(prevDefaultServers)) {
-            mgr.updateDefaultServers(Sets.<Address>newHashSet(servers));
+            mgr.updateDefaultServers(Sets.<HostAndPort>newHashSet(servers));
             prevDefaultServers = servers;
             LOG.info("Updated with servers: "+servers.size());
           }

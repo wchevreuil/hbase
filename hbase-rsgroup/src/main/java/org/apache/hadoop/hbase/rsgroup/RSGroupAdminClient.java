@@ -1,4 +1,6 @@
 /**
+ * Copyright The Apache Software Foundation
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -17,11 +19,17 @@
  */
 package org.apache.hadoop.hbase.rsgroup;
 
+import com.google.common.collect.Sets;
+import com.google.common.net.HostAndPort;
+import com.google.protobuf.ServiceException;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
@@ -32,10 +40,6 @@ import org.apache.hadoop.hbase.protobuf.generated.RSGroupAdminProtos;
 import org.apache.hadoop.hbase.protobuf.generated.RSGroupAdminProtos.GetRSGroupInfoOfServerResponse;
 import org.apache.hadoop.hbase.protobuf.generated.RSGroupAdminProtos.GetRSGroupInfoOfTableResponse;
 import org.apache.hadoop.hbase.protobuf.generated.RSGroupProtos;
-import org.apache.hadoop.hbase.util.Address;
-
-import com.google.common.collect.Sets;
-import com.google.protobuf.ServiceException;
 
 
 /**
@@ -43,11 +47,12 @@ import com.google.protobuf.ServiceException;
  */
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
-class RSGroupAdminClient implements RSGroupAdmin {
-  private RSGroupAdminProtos.RSGroupAdminService.BlockingInterface stub;
+class RSGroupAdminClient extends RSGroupAdmin {
+  private RSGroupAdminProtos.RSGroupAdminService.BlockingInterface proxy;
+  private static final Log LOG = LogFactory.getLog(RSGroupAdminClient.class);
 
   public RSGroupAdminClient(Connection conn) throws IOException {
-    stub = RSGroupAdminProtos.RSGroupAdminService.newBlockingStub(
+    proxy = RSGroupAdminProtos.RSGroupAdminService.newBlockingStub(
         conn.getAdmin().coprocessorService());
   }
 
@@ -55,7 +60,7 @@ class RSGroupAdminClient implements RSGroupAdmin {
   public RSGroupInfo getRSGroupInfo(String groupName) throws IOException {
     try {
       RSGroupAdminProtos.GetRSGroupInfoResponse resp =
-        stub.getRSGroupInfo(null,
+        proxy.getRSGroupInfo(null,
             RSGroupAdminProtos.GetRSGroupInfoRequest.newBuilder()
                 .setRSGroupName(groupName).build());
       if(resp.hasRSGroupInfo()) {
@@ -74,7 +79,7 @@ class RSGroupAdminClient implements RSGroupAdmin {
             .setTableName(ProtobufUtil.toProtoTableName(tableName)).build();
 
     try {
-      GetRSGroupInfoOfTableResponse resp = stub.getRSGroupInfoOfTable(null, request);
+      GetRSGroupInfoOfTableResponse resp = proxy.getRSGroupInfoOfTable(null, request);
       if (resp.hasRSGroupInfo()) {
         return ProtobufUtil.toGroupInfo(resp.getRSGroupInfo());
       }
@@ -85,11 +90,11 @@ class RSGroupAdminClient implements RSGroupAdmin {
   }
 
   @Override
-  public void moveServers(Set<Address> servers, String targetGroup) throws IOException {
+  public void moveServers(Set<HostAndPort> servers, String targetGroup) throws IOException {
     Set<HBaseProtos.ServerName> hostPorts = Sets.newHashSet();
-    for(Address el: servers) {
+    for(HostAndPort el: servers) {
       hostPorts.add(HBaseProtos.ServerName.newBuilder()
-        .setHostName(el.getHostname())
+        .setHostName(el.getHostText())
         .setPort(el.getPort())
         .build());
     }
@@ -99,7 +104,7 @@ class RSGroupAdminClient implements RSGroupAdmin {
             .addAllServers(hostPorts).build();
 
     try {
-      stub.moveServers(null, request);
+      proxy.moveServers(null, request);
     } catch (ServiceException e) {
       throw ProtobufUtil.getRemoteException(e);
     }
@@ -114,7 +119,7 @@ class RSGroupAdminClient implements RSGroupAdmin {
       builder.addTableName(ProtobufUtil.toProtoTableName(tableName));
     }
     try {
-      stub.moveTables(null, builder.build());
+      proxy.moveTables(null, builder.build());
     } catch (ServiceException e) {
       throw ProtobufUtil.getRemoteException(e);
     }
@@ -126,7 +131,7 @@ class RSGroupAdminClient implements RSGroupAdmin {
         RSGroupAdminProtos.AddRSGroupRequest.newBuilder()
             .setRSGroupName(groupName).build();
     try {
-      stub.addRSGroup(null, request);
+      proxy.addRSGroup(null, request);
     } catch (ServiceException e) {
       throw ProtobufUtil.getRemoteException(e);
     }
@@ -138,7 +143,7 @@ class RSGroupAdminClient implements RSGroupAdmin {
         RSGroupAdminProtos.RemoveRSGroupRequest.newBuilder()
             .setRSGroupName(name).build();
     try {
-      stub.removeRSGroup(null, request);
+      proxy.removeRSGroup(null, request);
     } catch (ServiceException e) {
       throw ProtobufUtil.getRemoteException(e);
     }
@@ -151,7 +156,7 @@ class RSGroupAdminClient implements RSGroupAdmin {
             .setRSGroupName(name).build();
 
     try {
-      return stub.balanceRSGroup(null, request).getBalanceRan();
+      return proxy.balanceRSGroup(null, request).getBalanceRan();
     } catch (ServiceException e) {
       throw ProtobufUtil.getRemoteException(e);
     }
@@ -161,7 +166,7 @@ class RSGroupAdminClient implements RSGroupAdmin {
   public List<RSGroupInfo> listRSGroups() throws IOException {
     try {
       List<RSGroupProtos.RSGroupInfo> resp =
-          stub.listRSGroupInfos(null,
+          proxy.listRSGroupInfos(null,
               RSGroupAdminProtos.ListRSGroupInfosRequest.newBuilder().build()).getRSGroupInfoList();
       List<RSGroupInfo> result = new ArrayList<RSGroupInfo>(resp.size());
       for(RSGroupProtos.RSGroupInfo entry: resp) {
@@ -174,16 +179,16 @@ class RSGroupAdminClient implements RSGroupAdmin {
   }
 
   @Override
-  public RSGroupInfo getRSGroupOfServer(Address hostPort) throws IOException {
+  public RSGroupInfo getRSGroupOfServer(HostAndPort hostPort) throws IOException {
     RSGroupAdminProtos.GetRSGroupInfoOfServerRequest request =
         RSGroupAdminProtos.GetRSGroupInfoOfServerRequest.newBuilder()
             .setServer(HBaseProtos.ServerName.newBuilder()
-                .setHostName(hostPort.getHostname())
+                .setHostName(hostPort.getHostText())
                 .setPort(hostPort.getPort())
                 .build())
             .build();
     try {
-      GetRSGroupInfoOfServerResponse resp = stub.getRSGroupInfoOfServer(null, request);
+      GetRSGroupInfoOfServerResponse resp = proxy.getRSGroupInfoOfServer(null, request);
       if (resp.hasRSGroupInfo()) {
         return ProtobufUtil.toGroupInfo(resp.getRSGroupInfo());
       }

@@ -35,7 +35,8 @@ import org.apache.hadoop.hbase.master.procedure.MasterProcedureEnv;
 import org.apache.hadoop.hbase.procedure2.ProcedureExecutor;
 import org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.SnapshotDescription;
 import org.apache.hadoop.hbase.protobuf.generated.QuotaProtos.Quotas;
-import org.apache.hadoop.hbase.util.Address;
+
+import com.google.common.net.HostAndPort;
 
 import java.io.IOException;
 import java.util.List;
@@ -562,12 +563,12 @@ public class BaseMasterObserver implements MasterObserver {
   }
 
   @Override
-  public void preMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx, Set<Address>
+  public void preMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx, Set<HostAndPort>
       servers, String targetGroup) throws IOException {
   }
 
   @Override
-  public void postMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx, Set<Address>
+  public void postMoveServers(ObserverContext<MasterCoprocessorEnvironment> ctx, Set<HostAndPort>
       servers, String targetGroup) throws IOException {
   }
 
