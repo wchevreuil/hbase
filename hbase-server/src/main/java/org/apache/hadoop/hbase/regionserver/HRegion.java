@@ -189,6 +189,7 @@ import com.google.common.base.Optional;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.io.Closeables;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
@@ -1524,12 +1525,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         this.metricsRegion.close();
       }
       if (this.metricsRegionWrapper != null) {
-        try {
-          this.metricsRegionWrapper.close();
-        } catch (IOException ioe) {
-          // This is what closeQuietly does.
-          throw new AssertionError(ioe);
-        }
+        Closeables.closeQuietly(this.metricsRegionWrapper);
       }
       status.markComplete("Closed");
       LOG.info("Closed " + this);

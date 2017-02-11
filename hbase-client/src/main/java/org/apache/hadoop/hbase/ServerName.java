@@ -29,10 +29,6 @@ import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos;
 import org.apache.hadoop.hbase.util.Addressing;
 import org.apache.hadoop.hbase.util.Bytes;
 
-import com.google.common.net.HostAndPort;
-import com.google.common.net.InetAddresses;
-import com.google.protobuf.InvalidProtocolBufferException;
-
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -59,7 +55,7 @@ import java.util.regex.Pattern;
  */
 @InterfaceAudience.Public
 @InterfaceStability.Evolving
-  public class ServerName implements Comparable<ServerName>, Serializable {
+public class ServerName implements Comparable<ServerName>, Serializable {
   private static final long serialVersionUID = 1367463982557264981L;
 
   /**
@@ -96,7 +92,6 @@ import java.util.regex.Pattern;
   private final String hostnameOnly;
   private final int port;
   private final long startcode;
-  private transient HostAndPort hostAndPort;
 
   /**
    * Cached versioned bytes of this ServerName instance.
@@ -111,7 +106,7 @@ import java.util.regex.Pattern;
     this.hostnameOnly = hostname;
     this.port = port;
     this.startcode = startcode;
-    this.servername = getServerName(hostname, port, startcode);
+    this.servername = getServerName(this.hostnameOnly, port, startcode);
   }
 
   /**
@@ -195,8 +190,7 @@ import java.util.regex.Pattern;
    * in compares, etc.
    */
   public String toShortString() {
-    return Addressing.createHostAndPortStr(
-        getHostNameMinusDomain(hostnameOnly), port);
+    return Addressing.createHostAndPortStr(getHostNameMinusDomain(this.hostnameOnly), this.port);
   }
 
   /**
@@ -263,14 +257,7 @@ import java.util.regex.Pattern;
    * {@link Addressing#createHostAndPortStr(String, int)}
    */
   public String getHostAndPort() {
-    return Addressing.createHostAndPortStr(hostnameOnly, port);
-  }
-
-  public HostAndPort getHostPort() {
-    if (hostAndPort == null) {
-      hostAndPort = HostAndPort.fromParts(hostnameOnly, port);
-    }
-    return hostAndPort;
+    return Addressing.createHostAndPortStr(this.hostnameOnly, this.port);
   }
 
   /**

@@ -51,9 +51,6 @@ import org.apache.hadoop.hbase.Stoppable;
 @InterfaceAudience.Private
 public interface LoadBalancer extends Configurable, Stoppable, ConfigurationObserver {
 
-  //used to signal to the caller that the region(s) cannot be assigned
-  ServerName BOGUS_SERVER_NAME = ServerName.parseServerName("localhost,1,1");
-
   /**
    * Set the current cluster status.  This allows a LoadBalancer to map host name to a server
    * @param st

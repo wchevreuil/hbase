@@ -880,32 +880,6 @@ public class MetaTableAccessor {
   }
 
   /**
-   * A Visitor that skips offline regions and split parents
-   */
-  public static abstract class DefaultVisitorBase implements Visitor {
-
-    public DefaultVisitorBase() {
-      super();
-    }
-
-    public abstract boolean visitInternal(Result rowResult) throws IOException;
-
-    @Override
-    public boolean visit(Result rowResult) throws IOException {
-      HRegionInfo info = getHRegionInfo(rowResult);
-      if (info == null) {
-        return true;
-      }
-
-      //skip over offline and split regions
-      if (!(info.isOffline() || info.isSplit())) {
-        return visitInternal(rowResult);
-      }
-      return true;
-    }
-  }
-
-  /**
    * Count regions in <code>hbase:meta</code> for passed table.
    * @param c Configuration object
    * @param tableName table name to count regions for

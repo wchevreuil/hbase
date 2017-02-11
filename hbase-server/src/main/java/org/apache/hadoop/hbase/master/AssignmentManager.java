@@ -2139,7 +2139,7 @@ public class AssignmentManager extends ZooKeeperListener {
           }
         }
         LOG.info("Assigning " + region.getRegionNameAsString() +
-            " to " + plan.getDestination());
+            " to " + plan.getDestination().toString());
         // Transition RegionState to PENDING_OPEN
         currentState = regionStates.updateRegionState(region,
           State.PENDING_OPEN, plan.getDestination());
@@ -2438,13 +2438,6 @@ public class AssignmentManager extends ZooKeeperListener {
           || existingPlan.getDestination() == null
           || !destServers.contains(existingPlan.getDestination())) {
         newPlan = true;
-        try {
-          randomPlan = new RegionPlan(region, null,
-              balancer.randomAssignment(region, destServers));
-        } catch (IOException ex) {
-          LOG.warn("Failed to create new plan.",ex);
-          return null;
-        }
       }
     }
 
@@ -2788,8 +2781,6 @@ public class AssignmentManager extends ZooKeeperListener {
       throw new IOException("Unable to determine a plan to assign region(s)");
     }
 
-    processBogusAssignments(bulkPlan);
-
     assign(regions.size(), servers.size(),
       "retainAssignment=true", bulkPlan);
   }
@@ -2818,8 +2809,6 @@ public class AssignmentManager extends ZooKeeperListener {
     if (bulkPlan == null) {
       throw new IOException("Unable to determine a plan to assign region(s)");
     }
-
-    processBogusAssignments(bulkPlan);
 
     processFavoredNodes(regions);
     assign(regions.size(), servers.size(), "round-robin=true", bulkPlan);
@@ -4437,16 +4426,6 @@ public class AssignmentManager extends ZooKeeperListener {
         + code + " by " + serverName + ": " + errorMsg);
     }
     return errorMsg;
-  }
-
-  private void processBogusAssignments(Map<ServerName, List<HRegionInfo>> bulkPlan) {
-    if (bulkPlan.containsKey(LoadBalancer.BOGUS_SERVER_NAME)) {
-      // Found no plan for some regions, put those regions in RIT
-      for (HRegionInfo hri : bulkPlan.get(LoadBalancer.BOGUS_SERVER_NAME)) {
-        regionStates.updateRegionState(hri, State.FAILED_OPEN);
-      }
-      bulkPlan.remove(LoadBalancer.BOGUS_SERVER_NAME);
-    }
   }
 
   /**

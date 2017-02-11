@@ -193,8 +193,6 @@
                           <include>RegionServerStatus.proto</include>
                           <include>RowProcessor.proto</include>
                           <include>RPC.proto</include>
-                          <include>RSGroup.proto</include>
-                          <include>RSGroupAdmin.proto</include>
                           <include>SecureBulkLoad.proto</include>
                           <include>Tracing.proto</include>
                           <include>VisibilityLabels.proto</include>
