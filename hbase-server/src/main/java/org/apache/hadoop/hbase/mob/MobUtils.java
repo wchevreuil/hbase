@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -52,6 +53,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.Tag;
 import org.apache.hadoop.hbase.TagType;
 import org.apache.hadoop.hbase.backup.HFileArchiver;
+import org.apache.hadoop.hbase.client.MobCompactPartitionPolicy;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.io.HFileLink;
 import org.apache.hadoop.hbase.io.compress.Compression;
@@ -63,6 +65,8 @@ import org.apache.hadoop.hbase.master.TableLockManager;
 import org.apache.hadoop.hbase.master.TableLockManager.TableLock;
 import org.apache.hadoop.hbase.mob.filecompactions.MobFileCompactor;
 import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactor;
+import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactionRequest;
+import org.apache.hadoop.hbase.mob.filecompactions.PartitionedMobFileCompactionRequest.CompactionPartitionId;
 import org.apache.hadoop.hbase.regionserver.BloomType;
 import org.apache.hadoop.hbase.regionserver.HStore;
 import org.apache.hadoop.hbase.regionserver.StoreFile;
@@ -75,6 +79,8 @@ import org.apache.hadoop.hbase.util.*;
 public class MobUtils {
 
   private static final Log LOG = LogFactory.getLog(MobUtils.class);
+  private final static long WEEKLY_THRESHOLD_MULTIPLIER = 7;
+  private final static long MONTHLY_THRESHOLD_MULTIPLIER = 4 * WEEKLY_THRESHOLD_MULTIPLIER;
 
   private static final ThreadLocal<SimpleDateFormat> LOCAL_FORMAT =
       new ThreadLocal<SimpleDateFormat>() {
@@ -101,6 +107,45 @@ public class MobUtils {
    */
   public static Date parseDate(String dateString) throws ParseException {
     return LOCAL_FORMAT.get().parse(dateString);
+  }
+
+  /**
+   * Get the first day of the input date's month
+   * @param calendar Calendar object
+   * @param date The date to find out its first day of that month
+   * @return The first day in the month
+   */
+  public static Date getFirstDayOfMonth(final Calendar calendar, final Date date) {
+
+    calendar.setTime(date);
+    calendar.set(Calendar.HOUR_OF_DAY, 0);
+    calendar.set(Calendar.MINUTE, 0);
+    calendar.set(Calendar.SECOND, 0);
+    calendar.set(Calendar.MILLISECOND, 0);
+    calendar.set(Calendar.DAY_OF_MONTH, 1);
+
+    Date firstDayInMonth = calendar.getTime();
+    return firstDayInMonth;
+  }
+
+  /**
+   * Get the first day of the input date's week
+   * @param calendar Calendar object
+   * @param date The date to find out its first day of that week
+   * @return The first day in the week
+   */
+  public static Date getFirstDayOfWeek(final Calendar calendar, final Date date) {
+
+    calendar.setTime(date);
+    calendar.set(Calendar.HOUR_OF_DAY, 0);
+    calendar.set(Calendar.MINUTE, 0);
+    calendar.set(Calendar.SECOND, 0);
+    calendar.set(Calendar.MILLISECOND, 0);
+    calendar.setFirstDayOfWeek(Calendar.MONDAY);
+    calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY);
+
+    Date firstDayInWeek = calendar.getTime();
+    return firstDayInWeek;
   }
 
   /**
@@ -231,8 +276,14 @@ public class MobUtils {
       return;
     }
 
-    Date expireDate = new Date(current - timeToLive * 1000);
-    expireDate = new Date(expireDate.getYear(), expireDate.getMonth(), expireDate.getDate());
+    Calendar calendar = Calendar.getInstance();
+    calendar.setTimeInMillis(current - timeToLive * 1000);
+    calendar.set(Calendar.HOUR_OF_DAY, 0);
+    calendar.set(Calendar.MINUTE, 0);
+    calendar.set(Calendar.SECOND, 0);
+
+    Date expireDate = calendar.getTime();
+
     LOG.info("MOB HFiles older than " + expireDate.toGMTString() + " will be deleted!");
 
     FileStatus[] stats = null;
@@ -252,14 +303,13 @@ public class MobUtils {
     for (FileStatus file : stats) {
       String fileName = file.getPath().getName();
       try {
-        MobFileName mobFileName = null;
-        if (!HFileLink.isHFileLink(file.getPath())) {
-          mobFileName = MobFileName.create(fileName);
-        } else {
+        if (HFileLink.isHFileLink(file.getPath())) {
           HFileLink hfileLink = HFileLink.buildFromHFileLinkPattern(conf, file.getPath());
-          mobFileName = MobFileName.create(hfileLink.getOriginPath().getName());
+          fileName = hfileLink.getOriginPath().getName();
         }
-        Date fileDate = parseDate(mobFileName.getDate());
+
+        Date fileDate = parseDate(MobFileName.getDateFromName(fileName));
+
         if (LOG.isDebugEnabled()) {
           LOG.debug("Checking file " + fileName);
         }
@@ -455,8 +505,8 @@ public class MobUtils {
       HColumnDescriptor family, String date, Path basePath, long maxKeyCount,
       Compression.Algorithm compression, String startKey, CacheConfig cacheConfig)
       throws IOException {
-    MobFileName mobFileName = MobFileName.create(startKey, date, UUID.randomUUID().toString()
-        .replaceAll("-", ""));
+    MobFileName mobFileName = MobFileName.create(startKey, date,
+        UUID.randomUUID().toString().replaceAll("-", ""));
     return createWriter(conf, fs, family, mobFileName, basePath, maxKeyCount, compression,
       cacheConfig);
   }
@@ -808,5 +858,88 @@ public class MobUtils {
       storeFileList.add(new StoreFile(fs, file.getPath(), conf, cacheConfig, BloomType.NONE));
     }
     HFileArchiver.archiveStoreFiles(conf, fs, mobRegionInfo, mobFamilyDir, family, storeFileList);
+  }
+
+  /**
+   * fill out partition id based on compaction policy and date, threshold...
+   * @param id Partition id to be filled out
+   * @param firstDayOfCurrentMonth The first day in the current month
+   * @param firstDayOfCurrentWeek The first day in the current week
+   * @param dateStr Date string from the mob file
+   * @param policy Mob compaction policy
+   * @param calendar Calendar object
+   * @param threshold Mob compaciton threshold configured
+   * @return true if the file needs to be excluded from compaction
+   */
+  public static boolean fillPartitionId(final CompactionPartitionId id,
+      final Date firstDayOfCurrentMonth, final Date firstDayOfCurrentWeek, final String dateStr,
+      final MobCompactPartitionPolicy policy, final Calendar calendar, final long threshold) {
+
+    boolean skipCompcation = false;
+    id.setThreshold(threshold);
+    if (threshold <= 0) {
+      id.setDate(dateStr);
+      return skipCompcation;
+    }
+
+    long finalThreshold;
+    Date date;
+    try {
+      date = MobUtils.parseDate(dateStr);
+    } catch (ParseException e)  {
+      LOG.warn("Failed to parse date " + dateStr, e);
+      id.setDate(dateStr);
+      return true;
+    }
+
+    /* The algorithm works as follows:
+     *    For monthly policy:
+     *       1). If the file's date is in past months, apply 4 * 7 * threshold
+     *       2). If the file's date is in past weeks, apply 7 * threshold
+     *       3). If the file's date is in current week, exclude it from the compaction
+     *    For weekly policy:
+     *       1). If the file's date is in past weeks, apply 7 * threshold
+     *       2). If the file's date in currently, apply threshold
+     *    For daily policy:
+     *       1). apply threshold
+     */
+    if (policy == MobCompactPartitionPolicy.MONTHLY) {
+      if (date.before(firstDayOfCurrentMonth)) {
+        // Check overflow
+        if (threshold < (Long.MAX_VALUE / MONTHLY_THRESHOLD_MULTIPLIER)) {
+          finalThreshold = MONTHLY_THRESHOLD_MULTIPLIER * threshold;
+        } else {
+          finalThreshold = Long.MAX_VALUE;
+        }
+        id.setThreshold(finalThreshold);
+
+        // set to the date for the first day of that month
+        id.setDate(MobUtils.formatDate(MobUtils.getFirstDayOfMonth(calendar, date)));
+        return skipCompcation;
+      }
+    }
+
+    if ((policy == MobCompactPartitionPolicy.MONTHLY) ||
+        (policy == MobCompactPartitionPolicy.WEEKLY)) {
+      // Check if it needs to apply weekly multiplier
+      if (date.before(firstDayOfCurrentWeek)) {
+        // Check overflow
+        if (threshold < (Long.MAX_VALUE / WEEKLY_THRESHOLD_MULTIPLIER)) {
+          finalThreshold = WEEKLY_THRESHOLD_MULTIPLIER * threshold;
+        } else {
+          finalThreshold = Long.MAX_VALUE;
+        }
+        id.setThreshold(finalThreshold);
+
+        id.setDate(MobUtils.formatDate(MobUtils.getFirstDayOfWeek(calendar, date)));
+        return skipCompcation;
+      } else if (policy == MobCompactPartitionPolicy.MONTHLY) {
+        skipCompcation = true;
+      }
+    }
+
+    // Rest is daily
+    id.setDate(dateStr);
+    return skipCompcation;
   }
 }
