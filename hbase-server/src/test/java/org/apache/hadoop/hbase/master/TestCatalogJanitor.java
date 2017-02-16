@@ -459,6 +459,9 @@ public class TestCatalogJanitor {
         final long nonce) throws IOException {
       return -1;
     }
+    public LoadBalancer getLoadBalancer() {
+      return null;
+    }
 
     @Override
     public long disableTable(

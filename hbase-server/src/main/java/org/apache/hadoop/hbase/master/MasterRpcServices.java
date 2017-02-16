@@ -664,7 +664,8 @@ public class MasterRpcServices extends RSRpcServices
       String methodName = call.getMethodName();
       if (!master.coprocessorServiceHandlers.containsKey(serviceName)) {
         throw new UnknownProtocolException(null,
-          "No registered master coprocessor service found for name "+serviceName);
+          "No registered Master Coprocessor Endpoint found for " + serviceName +
+          ". Has it been enabled?");
       }
 
       Service service = master.coprocessorServiceHandlers.get(serviceName);
@@ -1374,6 +1375,14 @@ public class MasterRpcServices extends RSRpcServices
       }
       Pair<HRegionInfo, ServerName> pair =
         MetaTableAccessor.getRegion(master.getConnection(), regionName);
+      if (Bytes.equals(HRegionInfo.FIRST_META_REGIONINFO.getRegionName(),regionName)) {
+        pair = new Pair<HRegionInfo, ServerName>(HRegionInfo.FIRST_META_REGIONINFO,
+            master.getMetaTableLocator().getMetaRegionLocation(master.getZooKeeper()));
+      }
+      if (pair == null) {
+        throw new UnknownRegionException(Bytes.toString(regionName));
+      }
+
       if (pair == null) throw new UnknownRegionException(Bytes.toString(regionName));
       HRegionInfo hri = pair.getFirst();
       if (master.cpHost != null) {

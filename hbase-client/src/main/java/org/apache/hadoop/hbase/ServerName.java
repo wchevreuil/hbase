@@ -18,27 +18,29 @@
  */
 package org.apache.hadoop.hbase;
 
-import com.google.common.net.InetAddresses;
-import com.google.protobuf.InvalidProtocolBufferException;
-
-import org.apache.hadoop.hbase.classification.InterfaceAudience;
-import org.apache.hadoop.hbase.classification.InterfaceStability;
-import org.apache.hadoop.hbase.exceptions.DeserializationException;
-import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
-import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos;
-import org.apache.hadoop.hbase.util.Addressing;
-import org.apache.hadoop.hbase.util.Bytes;
-
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
+import org.apache.hadoop.hbase.classification.InterfaceAudience;
+import org.apache.hadoop.hbase.classification.InterfaceStability;
+import org.apache.hadoop.hbase.exceptions.DeserializationException;
+import org.apache.hadoop.hbase.net.Address;
+import org.apache.hadoop.hbase.protobuf.ProtobufUtil;
+import org.apache.hadoop.hbase.protobuf.generated.ZooKeeperProtos;
+import org.apache.hadoop.hbase.util.Addressing;
+import org.apache.hadoop.hbase.util.Bytes;
+
+import com.google.common.net.InetAddresses;
+import com.google.protobuf.InvalidProtocolBufferException;
+
+
 /**
- * Instance of an HBase ServerName.
- * A server name is used uniquely identifying a server instance in a cluster and is made
- * of the combination of hostname, port, and startcode.  The startcode distingushes restarted
+ * Name of a particular incarnation of an HBase Server.
+ * A {@link ServerName} is used uniquely identifying a server instance in a cluster and is made
+ * of the combination of hostname, port, and startcode.  The startcode distinguishes restarted
  * servers on same hostname and port (startcode is usually timestamp of server startup). The
  * {@link #toString()} format of ServerName is safe to use in the  filesystem and as znode name
  * up in ZooKeeper.  Its format is:
@@ -49,7 +51,11 @@ import java.util.regex.Pattern;
  * the {@link #toString()} would be <code>www.example.org,1234,1212121212</code>.
  *
  * <p>You can obtain a versioned serialized form of this class by calling
- * {@link #getVersionedBytes()}.  To deserialize, call {@link #parseVersionedServerName(byte[])}
+ * {@link #getVersionedBytes()}.  To deserialize, call
+ * {@link #parseVersionedServerName(byte[])}.
+ *
+ * <p>Use {@link #getAddress()} to obtain the Server hostname + port
+ * (Endpoint/Socket Address).
  *
  * <p>Immutable.
  */
@@ -89,9 +95,8 @@ public class ServerName implements Comparable<ServerName>, Serializable {
   public static final String UNKNOWN_SERVERNAME = "#unknown#";
 
   private final String servername;
-  private final String hostnameOnly;
-  private final int port;
   private final long startcode;
+  private transient Address address;
 
   /**
    * Cached versioned bytes of this ServerName instance.
@@ -100,24 +105,16 @@ public class ServerName implements Comparable<ServerName>, Serializable {
   private byte [] bytes;
   public static final List<ServerName> EMPTY_SERVER_LIST = new ArrayList<ServerName>(0);
 
-  private ServerName(final String hostname, final int port, final long startcode) {
-    // Drop the domain is there is one; no need of it in a local cluster.  With it, we get long
-    // unwieldy names.
-    this.hostnameOnly = hostname;
-    this.port = port;
-    this.startcode = startcode;
-    this.servername = getServerName(this.hostnameOnly, port, startcode);
+  protected ServerName(final String hostname, final int port, final long startcode) {
+    this(Address.fromParts(hostname, port), startcode);
   }
 
-  /**
-   * @param hostname
-   * @return hostname minus the domain, if there is one (will do pass-through on ip addresses)
-   */
-  static String getHostNameMinusDomain(final String hostname) {
-    if (InetAddresses.isInetAddress(hostname)) return hostname;
-    String [] parts = hostname.split("\\.");
-    if (parts == null || parts.length == 0) return hostname;
-    return parts[0];
+  private ServerName(final Address address, final long startcode) {
+    // Use HostAndPort to host port and hostname. Does validation and can do ipv6
+    this.address = address;
+    this.startcode = startcode;
+    this.servername = getServerName(this.address.getHostname(),
+        this.address.getPort(), startcode);
   }
 
   private ServerName(final String serverName) {
@@ -126,10 +123,28 @@ public class ServerName implements Comparable<ServerName>, Serializable {
   }
 
   private ServerName(final String hostAndPort, final long startCode) {
-    this(Addressing.parseHostname(hostAndPort),
-      Addressing.parsePort(hostAndPort), startCode);
+    this(Address.fromString(hostAndPort), startCode);
   }
 
+  /**
+   * @param hostname
+   * @return hostname minus the domain, if there is one (will do pass-through on ip addresses)
+   * @deprecated Since 1.4.0. This is for internal use only.
+   */
+  @Deprecated
+  // Make this private in hbase-3.0.
+  static String getHostNameMinusDomain(final String hostname) {
+    if (InetAddresses.isInetAddress(hostname)) return hostname;
+    String [] parts = hostname.split("\\.");
+    if (parts == null || parts.length == 0) return hostname;
+    return parts[0];
+  }
+
+  /**
+   * @deprecated Since 1.4.0. Use {@link #valueOf(String)}
+   */
+  @Deprecated
+  // This is unused. Get rid of it.
   public static String parseHostname(final String serverName) {
     if (serverName == null || serverName.length() <= 0) {
       throw new IllegalArgumentException("Passed hostname is null or empty");
@@ -141,11 +156,21 @@ public class ServerName implements Comparable<ServerName>, Serializable {
     return serverName.substring(0, index);
   }
 
+  /**
+   * @deprecated Since 1.4.0. Use {@link #valueOf(String)}
+   */
+  @Deprecated
+  // This is unused. Get rid of it.
   public static int parsePort(final String serverName) {
     String [] split = serverName.split(SERVERNAME_SEPARATOR);
     return Integer.parseInt(split[1]);
   }
 
+  /**
+   * @deprecated Since 1.4.0. Use {@link #valueOf(String)}
+   */
+  @Deprecated
+  // This is unused. Get rid of it.
   public static long parseStartcode(final String serverName) {
     int index = serverName.lastIndexOf(SERVERNAME_SEPARATOR);
     return Long.parseLong(serverName.substring(index + 1));
@@ -190,7 +215,9 @@ public class ServerName implements Comparable<ServerName>, Serializable {
    * in compares, etc.
    */
   public String toShortString() {
-    return Addressing.createHostAndPortStr(getHostNameMinusDomain(this.hostnameOnly), this.port);
+    return Addressing.createHostAndPortStr(
+        getHostNameMinusDomain(this.address.getHostname()),
+        this.address.getPort());
   }
 
   /**
@@ -209,11 +236,11 @@ public class ServerName implements Comparable<ServerName>, Serializable {
   }
 
   public String getHostname() {
-    return hostnameOnly;
+    return this.address.getHostname();
   }
 
   public int getPort() {
-    return port;
+    return this.address.getPort();
   }
 
   public long getStartcode() {
@@ -227,7 +254,10 @@ public class ServerName implements Comparable<ServerName>, Serializable {
    * @param startcode
    * @return Server name made of the concatenation of hostname, port and
    * startcode formatted as <code>&lt;hostname&gt; ',' &lt;port&gt; ',' &lt;startcode&gt;</code>
+   * @deprecated Since 1.4.0. Use {@link ServerName#valueOf(String, int, long)} instead.
    */
+  @Deprecated
+  // TODO: Make this private in hbase-3.0.
   static String getServerName(String hostName, int port, long startcode) {
     final StringBuilder name = new StringBuilder(hostName.length() + 1 + 5 + 1 + 13);
     name.append(hostName.toLowerCase(Locale.ROOT));
@@ -243,7 +273,9 @@ public class ServerName implements Comparable<ServerName>, Serializable {
    * @param startcode
    * @return Server name made of the concatenation of hostname, port and
    * startcode formatted as <code>&lt;hostname&gt; ',' &lt;port&gt; ',' &lt;startcode&gt;</code>
+   * @deprecated Since 1.4.0. Use {@link ServerName#valueOf(String, long)} instead.
    */
+  @Deprecated
   public static String getServerName(final String hostAndPort,
       final long startcode) {
     int index = hostAndPort.indexOf(":");
@@ -255,15 +287,23 @@ public class ServerName implements Comparable<ServerName>, Serializable {
   /**
    * @return Hostname and port formatted as described at
    * {@link Addressing#createHostAndPortStr(String, int)}
+   * @deprecated Since 1.4.0. Use {@link #getAddress()} instead.
    */
+  @Deprecated
   public String getHostAndPort() {
-    return Addressing.createHostAndPortStr(this.hostnameOnly, this.port);
+    return this.address.toString();
+  }
+
+  public Address getAddress() {
+    return this.address;
   }
 
   /**
    * @param serverName ServerName in form specified by {@link #getServerName()}
    * @return The server start code parsed from <code>servername</code>
+   * @deprecated Since 1.4.0. Use instance of ServerName to pull out start code.
    */
+  @Deprecated
   public static long getServerStartcodeFromServerName(final String serverName) {
     int index = serverName.lastIndexOf(SERVERNAME_SEPARATOR);
     return Long.parseLong(serverName.substring(index + 1));
@@ -273,7 +313,9 @@ public class ServerName implements Comparable<ServerName>, Serializable {
    * Utility method to excise the start code from a server name
    * @param inServerName full server name
    * @return server name less its start code
+   * @deprecated Since 1.4.0. Use {@link #getAddress()}
    */
+  @Deprecated
   public static String getServerNameLessStartCode(String inServerName) {
     if (inServerName != null && inServerName.length() > 0) {
       int index = inServerName.lastIndexOf(SERVERNAME_SEPARATOR);
@@ -290,7 +332,7 @@ public class ServerName implements Comparable<ServerName>, Serializable {
     if (compare != 0) return compare;
     compare = this.getPort() - other.getPort();
     if (compare != 0) return compare;
-    return (int)(this.getStartcode() - other.getStartcode());
+    return Long.compare(this.getStartcode(), other.getStartcode());
   }
 
   @Override
@@ -313,6 +355,7 @@ public class ServerName implements Comparable<ServerName>, Serializable {
    */
   public static boolean isSameHostnameAndPort(final ServerName left,
       final ServerName right) {
+    // TODO: Make this left.getAddress().equals(right.getAddress())
     if (left == null) return false;
     if (right == null) return false;
     return left.getHostname().compareToIgnoreCase(right.getHostname()) == 0 &&
@@ -375,7 +418,7 @@ public class ServerName implements Comparable<ServerName>, Serializable {
       int prefixLen = ProtobufUtil.lengthOfPBMagic();
       try {
         ZooKeeperProtos.Master rss =
-          ZooKeeperProtos.Master.PARSER.parseFrom(data, prefixLen, data.length - prefixLen);
+           ZooKeeperProtos.Master.PARSER.parseFrom(data, prefixLen, data.length - prefixLen);
         org.apache.hadoop.hbase.protobuf.generated.HBaseProtos.ServerName sn = rss.getMaster();
         return valueOf(sn.getHostName(), sn.getPort(), sn.getStartCode());
       } catch (InvalidProtocolBufferException e) {

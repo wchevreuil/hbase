@@ -20,7 +20,6 @@
 
 package org.apache.hadoop.hbase.io.hfile.bucket;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
