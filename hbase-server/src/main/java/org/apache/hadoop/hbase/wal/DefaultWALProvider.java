@@ -358,7 +358,7 @@ public class DefaultWALProvider implements WALProvider {
     }
     try {
       serverName = ServerName.parseServerName(logDirName);
-    } catch (IllegalArgumentException ex) {
+    } catch (IllegalArgumentException|IllegalStateException ex) {
       serverName = null;
       LOG.warn("Cannot parse a server name from path=" + logFile + "; " + ex.getMessage());
     }
