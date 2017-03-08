@@ -3420,6 +3420,30 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
   }
 
   /**
+   * Move region to destination server and wait till region is completely moved and online
+   *
+   * @param destRegion region to move
+   * @param destServer destination server of the region
+   * @throws InterruptedException
+   * @throws IOException
+   */
+  public void moveRegionAndWait(HRegionInfo destRegion, ServerName destServer)
+      throws InterruptedException, IOException {
+    HMaster master = getMiniHBaseCluster().getMaster();
+    getHBaseAdmin().move(destRegion.getEncodedNameAsBytes(),
+        Bytes.toBytes(destServer.getServerName()));
+    while (true) {
+      ServerName serverName = master.getAssignmentManager().getRegionStates()
+          .getRegionServerOfRegion(destRegion);
+      if (serverName != null && serverName.equals(destServer)) {
+        assertRegionOnServer(destRegion, serverName, 200);
+        break;
+      }
+      Thread.sleep(10);
+    }
+  }
+
+  /**
    * Wait until all regions for a table in hbase:meta have a non-empty
    * info:server, up to 60 seconds. This means all regions have been deployed,
    * master has been informed and updated hbase:meta with the regions deployed
