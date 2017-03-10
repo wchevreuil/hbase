@@ -49,6 +49,8 @@ import org.apache.hadoop.hbase.testclassification.LargeTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.zookeeper.MiniZooKeeperCluster;
 import org.apache.hadoop.hbase.zookeeper.ZooKeeperWatcher;
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.experimental.categories.Category;
@@ -96,9 +98,6 @@ public class TestMultiSlaveReplication {
         "org.apache.hadoop.hbase.replication.TestMasterReplication$CoprocessorCounter");
 
     utility1 = new HBaseTestingUtility(conf1);
-    utility1.startMiniZKCluster();
-    MiniZooKeeperCluster miniZK = utility1.getZkCluster();
-    new ZooKeeperWatcher(conf1, "cluster1", null, true);
 
     conf2 = new Configuration(conf1);
     conf2.set(HConstants.ZOOKEEPER_ZNODE_PARENT, "/2");
@@ -107,12 +106,8 @@ public class TestMultiSlaveReplication {
     conf3.set(HConstants.ZOOKEEPER_ZNODE_PARENT, "/3");
 
     utility2 = new HBaseTestingUtility(conf2);
-    utility2.setZkCluster(miniZK);
-    new ZooKeeperWatcher(conf2, "cluster2", null, true);
 
     utility3 = new HBaseTestingUtility(conf3);
-    utility3.setZkCluster(miniZK);
-    new ZooKeeperWatcher(conf3, "cluster3", null, true);
 
     table = new HTableDescriptor(tableName);
     HColumnDescriptor fam = new HColumnDescriptor(famName);
@@ -122,9 +117,28 @@ public class TestMultiSlaveReplication {
     table.addFamily(fam);
   }
 
+  @Before
+  public void startup() throws Exception {
+    utility1.startMiniZKCluster();
+    MiniZooKeeperCluster miniZK = utility1.getZkCluster();
+    utility1.setZkCluster(miniZK);
+    new ZooKeeperWatcher(conf1, "cluster1", null, true);
+
+    utility2.setZkCluster(miniZK);
+    new ZooKeeperWatcher(conf2, "cluster2", null, true);
+
+    utility3.setZkCluster(miniZK);
+    new ZooKeeperWatcher(conf3, "cluster3", null, true);
+  }
+
+  @After
+  public void tearDown() throws Exception {
+    utility1.shutdownMiniZKCluster();
+  }
+
   @Test(timeout=300000)
   public void testMultiSlaveReplication() throws Exception {
-    LOG.info("testCyclicReplication");
+    LOG.info("Start the testMultiSlaveReplication Test");
     MiniHBaseCluster master = utility1.startMiniCluster();
     utility2.startMiniCluster();
     utility3.startMiniCluster();
