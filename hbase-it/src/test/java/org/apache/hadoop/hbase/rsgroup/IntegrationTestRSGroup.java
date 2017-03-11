@@ -26,7 +26,6 @@ import org.apache.hadoop.hbase.Waiter;
 import org.apache.hadoop.hbase.testclassification.IntegrationTests;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.experimental.categories.Category;
 
 /**
@@ -38,7 +37,7 @@ public class IntegrationTestRSGroup extends TestRSGroupsBase {
   private final static Log LOG = LogFactory.getLog(IntegrationTestRSGroup.class);
   private static boolean initialized = false;
 
-  @BeforeClass
+  @Before
   public void beforeMethod() throws Exception {
     if(!initialized) {
       LOG.info("Setting up IntegrationTestRSGroup");
