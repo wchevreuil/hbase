@@ -63,13 +63,8 @@ class HBaseContext(@transient sc: SparkContext,
                    val tmpHdfsConfgFile: String = null)
   extends Serializable with Logging {
 
-  @transient var credentials = SparkHadoopUtil.get.getCurrentUserCredentials()
   @transient var tmpHdfsConfiguration:Configuration = config
-  @transient var appliedCredentials = false
-  @transient val job = Job.getInstance(config)
-  TableMapReduceUtil.initCredentials(job)
   val broadcastedConf = sc.broadcast(new SerializableWritable(config))
-  val credentialsConf = sc.broadcast(new SerializableWritable(job.getCredentials))
 
   LatestHBaseContextCache.latest = this
 
@@ -228,23 +223,6 @@ class HBaseContext(@transient sc: SparkContext,
           m.flush()
           m.close()
         }))
-  }
-
-  def applyCreds[T] (){
-    credentials = SparkHadoopUtil.get.getCurrentUserCredentials()
-
-    logDebug("appliedCredentials:" + appliedCredentials + ",credentials:" + credentials)
-
-    if (!appliedCredentials && credentials != null) {
-      appliedCredentials = true
-
-      @transient val ugi = UserGroupInformation.getCurrentUser
-      ugi.addCredentials(credentials)
-      // specify that this is a proxy user
-      ugi.setAuthenticationMethod(AuthenticationMethod.PROXY)
-
-      ugi.addCredentials(credentialsConf.value.value)
-    }
   }
 
   /**
@@ -438,12 +416,9 @@ class HBaseContext(@transient sc: SparkContext,
 
     val job: Job = Job.getInstance(getConf(broadcastedConf))
 
-    TableMapReduceUtil.initCredentials(job)
     TableMapReduceUtil.initTableMapperJob(tableName, scan,
       classOf[IdentityTableMapper], null, null, job)
 
-    val jconf = new JobConf(job.getConfiguration)
-    SparkHadoopUtil.get.addCredentials(jconf)
     new NewHBaseRDD(sc,
       classOf[TableInputFormat],
       classOf[ImmutableBytesWritable],
@@ -480,7 +455,6 @@ class HBaseContext(@transient sc: SparkContext,
 
     val config = getConf(configBroadcast)
 
-    applyCreds
     // specify that this is a proxy user
     val connection = ConnectionFactory.createConnection(config)
     f(it, connection)
@@ -520,7 +494,6 @@ class HBaseContext(@transient sc: SparkContext,
                                          Iterator[U]): Iterator[U] = {
 
     val config = getConf(configBroadcast)
-    applyCreds
 
     val connection = ConnectionFactory.createConnection(config)
     val res = mp(it, connection)

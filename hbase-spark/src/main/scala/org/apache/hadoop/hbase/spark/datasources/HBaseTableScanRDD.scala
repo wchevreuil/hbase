@@ -112,7 +112,6 @@ class HBaseTableScanRDD(relation: HBaseRelation,
         filter.foreach(g.setFilter(_))
         gets.add(g)
       }
-      hbaseContext.applyCreds()
       val tmp = tbr.get(gets)
       rddResources.addResource(tmp)
       toResultIterator(tmp)
@@ -215,7 +214,6 @@ class HBaseTableScanRDD(relation: HBaseRelation,
     }
     val rIts = scans.par
       .map { scan =>
-      hbaseContext.applyCreds()
       val scanner = tableResource.getScanner(scan)
       rddResources.addResource(scanner)
       scanner
