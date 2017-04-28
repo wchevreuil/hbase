@@ -19,8 +19,8 @@
 package org.apache.hadoop.hbase.snapshot;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 import java.io.IOException;
 import java.net.URI;
@@ -100,19 +100,14 @@ public class TestExportSnapshot {
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     setUpBaseConf(TEST_UTIL.getConfiguration());
-    // Setup separate test-data directory for MR cluster and set corresponding configurations.
-    // Otherwise, different test classes running MR cluster can step on each other.
-    TEST_UTIL.getDataTestDir();
-    TEST_UTIL.startMiniZKCluster();
+    TEST_UTIL.startMiniCluster(1, 3);
     TEST_UTIL.startMiniMapReduceCluster();
-    TEST_UTIL.startMiniHBaseCluster(1, 3);
   }
 
   @AfterClass
   public static void tearDownAfterClass() throws Exception {
-    TEST_UTIL.shutdownMiniHBaseCluster();
     TEST_UTIL.shutdownMiniMapReduceCluster();
-    TEST_UTIL.shutdownMiniZKCluster();
+    TEST_UTIL.shutdownMiniCluster();
   }
 
   /**

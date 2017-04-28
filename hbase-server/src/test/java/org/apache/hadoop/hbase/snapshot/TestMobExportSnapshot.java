@@ -89,12 +89,8 @@ public class TestMobExportSnapshot {
   @BeforeClass
   public static void setUpBeforeClass() throws Exception {
     setUpBaseConf(TEST_UTIL.getConfiguration());
-    // Setup separate test-data directory for MR cluster and set corresponding configurations.
-    // Otherwise, different test classes running MR cluster can step on each other.
-    TEST_UTIL.getDataTestDir();
-    TEST_UTIL.startMiniZKCluster();
+    TEST_UTIL.startMiniCluster(1, 3);
     TEST_UTIL.startMiniMapReduceCluster();
-    TEST_UTIL.startMiniHBaseCluster(1, 3);
   }
 
   @AfterClass

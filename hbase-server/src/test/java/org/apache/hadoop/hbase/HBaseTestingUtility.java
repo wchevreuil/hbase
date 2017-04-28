@@ -655,9 +655,10 @@ public class HBaseTestingUtility extends HBaseCommonTestingUtility {
       new Path(root, "mapreduce-jobtracker-staging-root-dir").toString());
     conf.set("mapred.working.dir", new Path(root, "mapred-working-dir").toString());
     conf.set("mapreduce.job.working.dir", new Path(root, "mapred-working-dir").toString());
-
     conf.set("hadoop.job.history.user.location", new Path(root, "mapred-logs-dir").toString());
     conf.set("mapreduce.job.userhistorylocation", new Path(root, "mapred-logs-dir").toString());
+    conf.set("yarn.app.mapreduce.am.staging-dir",
+      new Path(root, "mapreduce-am-staging-root-dir").toString());
   }
 
 

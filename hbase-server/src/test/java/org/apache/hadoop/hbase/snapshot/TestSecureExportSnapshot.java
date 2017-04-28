@@ -26,6 +26,7 @@ import org.apache.hadoop.hbase.security.access.AccessControlLists;
 import org.apache.hadoop.hbase.security.access.SecureTestUtil;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
 
+import org.apache.hadoop.mapred.MiniMRCluster;
 import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.experimental.categories.Category;
@@ -52,11 +53,8 @@ public class TestSecureExportSnapshot extends TestExportSnapshot {
     // setup configuration
     SecureTestUtil.enableSecurity(TEST_UTIL.getConfiguration());
 
-    TEST_UTIL.startMiniCluster(3);
+    TEST_UTIL.startMiniCluster(1, 3);
     TEST_UTIL.startMiniMapReduceCluster();
-    TEST_UTIL.startMiniZKCluster();
-    TEST_UTIL.startMiniMapReduceCluster();
-    TEST_UTIL.startMiniHBaseCluster(1, 3);
 
     // Wait for the ACL table to become available
     TEST_UTIL.waitTableEnabled(AccessControlLists.ACL_TABLE_NAME);
