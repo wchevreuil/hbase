@@ -656,4 +656,8 @@ ClientProtos.ClientService.BlockingInterface, RegionServerServices {
   public MetricsRegionServer getMetrics() {
     return null;
   }
+
+  @Override
+  public void unassign(byte[] regionName) throws IOException {
+  }
 }

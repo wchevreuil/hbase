@@ -310,4 +310,8 @@ public class MockRegionServerServices implements RegionServerServices {
   public MetricsRegionServer getMetrics() {
     return null;
   }
+
+  @Override
+  public void unassign(byte[] regionName) throws IOException {
+  }
 }
