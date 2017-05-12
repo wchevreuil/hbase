@@ -112,8 +112,8 @@ cd "${COMPONENT}"
 "${GIT}" branch --set-upstream-to="origin/${GERRIT_BRANCH}" "${GERRIT_BRANCH}"
 cd "${WORKSPACE}"
 
-# Finally invoke test-patch and send results to a known HTML file.
-/bin/bash "${TESTPATCHBIN}" \
+# invoke test-patch and send results to a known HTML file.
+if ! /bin/bash "${TESTPATCHBIN}" \
         "${YETUS_ARGS[@]}" \
         --patch-dir="${PATCHPROCESS}" \
         --basedir="${COMPONENT}" \
@@ -121,4 +121,9 @@ cd "${WORKSPACE}"
         --git-cmd="${GIT}" \
         --branch="${GERRIT_BRANCH}" \
         --html-report-file="${PATCHPROCESS}/report_output.html" \
-        "${PATCHFILE}"
+        "${PATCHFILE}" ; then
+  echo "[ERROR] test patch failed, grabbing test logs into artifact 'test_logs.zip'"
+  echo "[DEBUG] If we failed but didn't run any junit tests, zip will fail. We can safely ignore that."
+  find "${COMPONENT}" -path '*/target/surefire-reports/*' | zip "${PATCHPROCESS}/test_logs.zip" -@ || true
+  exit 1
+fi
