@@ -290,33 +290,6 @@ public class MetaCache {
     this.cachedRegionLocations.remove(tableName);
   }
 
-  /**
-   * Delete a cached location, no matter what it is. Called when we were told to not use cache.
-   * @param tableName tableName
-   * @param row
-   */
-  public void clearCache(final TableName tableName, final byte [] row, int replicaId) {
-    ConcurrentMap<byte[], RegionLocations> tableLocations = getTableLocations(tableName);
-
-    boolean removed = false;
-    RegionLocations regionLocations = getCachedLocation(tableName, row);
-    if (regionLocations != null) {
-      HRegionLocation toBeRemoved = regionLocations.getRegionLocation(replicaId);
-      RegionLocations updatedLocations = regionLocations.remove(replicaId);
-      if (updatedLocations != regionLocations) {
-        byte[] startKey = regionLocations.getRegionLocation().getRegionInfo().getStartKey();
-        if (updatedLocations.isEmpty()) {
-          removed = tableLocations.remove(startKey, regionLocations);
-        } else {
-          removed = tableLocations.replace(startKey, regionLocations, updatedLocations);
-        }
-      }
-
-      if (removed && LOG.isTraceEnabled() && toBeRemoved != null) {
-        LOG.trace("Removed " + toBeRemoved + " from cache");
-      }
-    }
-  }
 
   /**
    * Delete a cached location, no matter what it is. Called when we were told to not use cache.
@@ -332,6 +305,37 @@ public class MetaCache {
       boolean removed = tableLocations.remove(startKey, regionLocations);
       if (removed && LOG.isTraceEnabled()) {
         LOG.trace("Removed " + regionLocations + " from cache");
+      }
+    }
+  }
+
+  /**
+   * Delete a cached location with specific replicaId.
+   * @param tableName tableName
+   * @param row row key
+   * @param replicaId region replica id
+   */
+  public void clearCache(final TableName tableName, final byte [] row, int replicaId) {
+    ConcurrentMap<byte[], RegionLocations> tableLocations = getTableLocations(tableName);
+
+    RegionLocations regionLocations = getCachedLocation(tableName, row);
+    if (regionLocations != null) {
+      HRegionLocation toBeRemoved = regionLocations.getRegionLocation(replicaId);
+      if (toBeRemoved != null) {
+        RegionLocations updatedLocations = regionLocations.remove(replicaId);
+        byte[] startKey = regionLocations.getRegionLocation().getRegionInfo().getStartKey();
+        boolean removed;
+        if (updatedLocations.isEmpty()) {
+          removed = tableLocations.remove(startKey, regionLocations);
+        } else {
+          removed = tableLocations.replace(startKey, regionLocations, updatedLocations);
+        }
+
+        if (removed) {
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Removed " + toBeRemoved + " from cache");
+          }
+        }
       }
     }
   }
