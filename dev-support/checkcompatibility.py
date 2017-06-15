@@ -192,6 +192,12 @@ def write_xml_file(path, version, jars):
             f.write(j + "\n")
         f.write("</archives>")
 
+def ascii_encode_dict(data):
+    """Iterate through a dictionary of data and convert all unicode to ascii.
+    This method was taken from
+    stackoverflow.com/questions/9590382/forcing-python-json-module-to-work-with-ascii"""
+    ascii_encode = lambda x: x.encode('ascii') if isinstance(x, unicode) else x
+    return dict(map(ascii_encode, pair) for pair in data.items())
 
 def process_json(path):
     """Process the known problems json file. The program exits if it can't find
@@ -202,7 +208,7 @@ def process_json(path):
         sys.exit(1)
     try:
         with open(path) as f:
-            return json.load(f)
+            return json.load(f, object_hook=ascii_encode_dict)
     except ValueError as e:
         logging.error("File: " + str(path) + "\nInvalid JSON:\n" + str(e))
         sys.exit(1)
