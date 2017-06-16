@@ -337,7 +337,7 @@ def get_known_problems_dict(json_path, src_rev, dst_rev):
     if src_rev[:7] == "origin/":
       src_rev = src_rev[7:]
     if dst_rev[:7] == "origin/":
-      dst_rev[:7] == dst_rev[:7]
+      dst_rev = dst_rev[7:]
     if json_path is not None:
         known_problems_dict = process_json(json_path)
         try:
