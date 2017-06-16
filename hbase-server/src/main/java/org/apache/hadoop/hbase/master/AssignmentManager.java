@@ -2446,13 +2446,6 @@ public class AssignmentManager extends ZooKeeperListener {
           || existingPlan.getDestination() == null
           || !destServers.contains(existingPlan.getDestination())) {
         newPlan = true;
-        try {
-          randomPlan = new RegionPlan(region, null,
-              balancer.randomAssignment(region, destServers));
-        } catch (IOException ex) {
-          LOG.warn("Failed to create new plan.",ex);
-          return null;
-        }
       }
     }
 
