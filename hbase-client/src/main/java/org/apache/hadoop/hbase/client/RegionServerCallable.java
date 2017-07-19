@@ -54,8 +54,6 @@ public abstract class RegionServerCallable<T> implements RetryingCallable<T> {
   protected HRegionLocation location;
   private ClientService.BlockingInterface stub;
 
-  protected final static int MIN_WAIT_DEAD_SERVER = 10000;
-
   /**
    * @param connection Connection to use.
    * @param tableName Table name to which <code>row</code> belongs.
@@ -142,13 +140,7 @@ public abstract class RegionServerCallable<T> implements RetryingCallable<T> {
 
   @Override
   public long sleep(long pause, int tries) {
-    // Tries hasn't been bumped up yet so we use "tries + 1" to get right pause time
-    long sleep = ConnectionUtils.getPauseTime(pause, tries + 1);
-    if (sleep < MIN_WAIT_DEAD_SERVER
-        && (location == null || getConnection().isDeadServer(location.getServerName()))) {
-      sleep = ConnectionUtils.addJitter(MIN_WAIT_DEAD_SERVER, 0.10f);
-    }
-    return sleep;
+    return ConnectionUtils.getPauseTime(pause, tries);
   }
 
   /**
