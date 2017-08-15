@@ -1565,7 +1565,7 @@ You can redistribute it and/or modify it under either the terms of the GPL
 ## license mentions.
 ##
 ## See this FAQ link for justifications: https://www.apache.org/legal/resolved.html
-#set($non_aggregate_fine = [ 'Public Domain', 'New BSD license', 'BSD license', 'Mozilla Public License Version 1.1', 'Mozilla Public License Version 2.0', 'Creative Commons Attribution License, Version 2.5' ])
+#set($non_aggregate_fine = [ 'Public Domain', 'New BSD License', 'BSD license', 'Mozilla Public License Version 1.1', 'Mozilla Public License Version 2.0', 'HSQLDB License', 'Creative Commons Attribution License, Version 2.5' ])
 ## include LICENSE sections for anything not under ASL2.0
 #foreach( ${dep} in ${projects} )
 #if(${debug-print-included-work-info.equalsIgnoreCase("true")})
@@ -1641,7 +1641,7 @@ ${dep.scm.url}
 #if(${dep.licenses[0].name.equals("Common Public License Version 1.0")})
 #set($aggregated = $cpl.add($dep))
 #end
-#if(${dep.licenses[0].name.equals("Eclipse Public License 1.0")})
+#if(${dep.licenses[0].name.equals("Eclipse Public License 1.0")} || ${dep.licenses[0].name.equals("Eclipse Public License v1.0")})
 #set($aggregated = $epl.add($dep))
 #end
 #if(!${aggregated})
