@@ -2300,7 +2300,12 @@ public class HMaster extends HRegionServer implements MasterServices, Server {
           getLoadedCoprocessors());
     }
     if (t != null) LOG.fatal(msg, t);
-    stop(msg);
+
+    try {
+      stopMaster();
+    } catch (IOException e) {
+      LOG.error("Exception occurred while stopping master", e);
+    }
   }
 
   @Override
