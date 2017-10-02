@@ -69,6 +69,7 @@ public class MetricsRegionSourceImpl implements MetricsRegionSource {
                                  MetricsRegionAggregateSourceImpl aggregate) {
     this.regionWrapper = regionWrapper;
     agg = aggregate;
+    hashCode = regionWrapper.getRegionHashCode();
     agg.register(this);
 
     LOG.debug("Creating new MetricsRegionSourceImpl for table " +
@@ -106,8 +107,6 @@ public class MetricsRegionSourceImpl implements MetricsRegionSource {
 
     regionScanTimeKey = regionNamePrefix + MetricsRegionServerSource.SCAN_TIME_KEY;
     regionScanTime = registry.newTimeHistogram(regionScanTimeKey);
-
-    hashCode = regionWrapper.getRegionHashCode();
   }
 
   @Override
