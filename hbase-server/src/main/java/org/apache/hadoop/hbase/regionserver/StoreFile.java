@@ -589,7 +589,7 @@ public class StoreFile {
     private Path filePath;
     private InetSocketAddress[] favoredNodes;
     private HFileContext fileContext;
-
+    private boolean shouldDropCacheBehind;
     public WriterBuilder(Configuration conf, CacheConfig cacheConf,
         FileSystem fs) {
       this.conf = conf;
@@ -656,8 +656,8 @@ public class StoreFile {
       return this;
     }
 
-    public WriterBuilder withShouldDropCacheBehind(boolean shouldDropCacheBehind/*NOT USED!!*/) {
-      // TODO: HAS NO EFFECT!!! FIX!!
+    public WriterBuilder withShouldDropCacheBehind(boolean shouldDropCacheBehind) {
+      this.shouldDropCacheBehind = shouldDropCacheBehind;
       return this;
     }
     /**
@@ -692,7 +692,7 @@ public class StoreFile {
         comparator = KeyValue.COMPARATOR;
       }
       return new Writer(fs, filePath,
-          conf, cacheConf, comparator, bloomType, maxKeyCount, favoredNodes, fileContext);
+          conf, cacheConf, comparator, bloomType, maxKeyCount, favoredNodes, fileContext, shouldDropCacheBehind);
     }
   }
 
@@ -787,19 +787,21 @@ public class StoreFile {
      *        for Bloom filter size in {@link HFile} format version 1.
      * @param favoredNodes
      * @param fileContext - The HFile context
+     * @param shouldDropCacheBehind Drop pages written to page cache after writing the store file.
      * @throws IOException problem writing to FS
      */
     private Writer(FileSystem fs, Path path,
         final Configuration conf,
         CacheConfig cacheConf,
         final KVComparator comparator, BloomType bloomType, long maxKeys,
-        InetSocketAddress[] favoredNodes, HFileContext fileContext)
+        InetSocketAddress[] favoredNodes, HFileContext fileContext, boolean shouldDropCacheBehind)
             throws IOException {
       writer = HFile.getWriterFactory(conf, cacheConf)
           .withPath(fs, path)
           .withComparator(comparator)
           .withFavoredNodes(favoredNodes)
           .withFileContext(fileContext)
+          .withShouldDropCacheBehind(shouldDropCacheBehind)
           .create();
 
       this.kvComparator = comparator;
