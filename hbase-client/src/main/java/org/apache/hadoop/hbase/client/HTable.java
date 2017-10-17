@@ -1128,7 +1128,8 @@ public class HTable implements HTableInterface, RegionLocator {
         return null;
       }
     };
-    rpcCallerFactory.<Void> newCaller().callWithRetries(callable, this.operationTimeout);
+    rpcCallerFactory.<Void> newCaller(rpcTimeout).callWithRetries(callable,
+        this.operationTimeout);
   }
 
   /**
@@ -1425,7 +1426,8 @@ public class HTable implements HTableInterface, RegionLocator {
             }
           }
         };
-    return rpcCallerFactory.<Boolean> newCaller().callWithRetries(callable, this.operationTimeout);
+    return rpcCallerFactory.<Boolean> newCaller(rpcTimeout).callWithRetries(callable,
+        this.operationTimeout);
   }
 
   /**
