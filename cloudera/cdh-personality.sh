@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Last updated from upstream dev-support/hbase-personality on commit
+# first updated from upstream dev-support/hbase-personality on commit
 #     41be3bc2cc42565335d55f553c536b1fce2aa023
 #
 #   - Removed hadoop-check test, since CDH only has 1 Hadoop version
@@ -107,6 +107,11 @@ function personality_modules
   # use -Dtest.exclude.pattern/-Dtest to exclude/include the
   # tests respectively.
   if [[ ${testtype} = unit ]]; then
+    # if the modules include root, skip all the submodules HBASE-18505
+    if [[ "${CHANGED_MODULES[*]}" =~ \. ]]; then
+      CHANGED_MODULES=(.)
+    fi
+
     extra="${extra} -PrunAllTests"
     if [[ -n "${EXCLUDED_TESTS}" ]]; then
       extra="${extra} -Dtest.exclude.pattern=${EXCLUDED_TESTS}"
