@@ -626,11 +626,12 @@ public class TestAtomicOperation {
     }
 
     @Override
-    public RowLock getRowLockInternal(final byte[] row, boolean readLock) throws IOException {
+    public RowLock getRowLock(final byte[] row, boolean readLock, boolean waitForLock)
+        throws IOException {
       if (testStep == TestStep.CHECKANDPUT_STARTED) {
         latch.countDown();
       }
-      return new WrappedRowLock(super.getRowLockInternal(row, readLock));
+      return new WrappedRowLock(super.getRowLock(row, readLock, waitForLock));
     }
 
     public class WrappedRowLock implements RowLock {
