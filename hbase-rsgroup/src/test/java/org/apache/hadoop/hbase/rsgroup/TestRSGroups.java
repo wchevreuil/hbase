@@ -18,6 +18,7 @@
 package org.apache.hadoop.hbase.rsgroup;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -269,5 +270,15 @@ public class TestRSGroups extends TestRSGroupsBase {
             .getOnlineRegions(serverName).size() == 15;
       }
     });
+  }
+
+  @Test
+  public void testRSGroupBalancerSwitch() throws IOException {
+    //Balancer is initially off in the test, set to true and check
+    assertFalse(admin.setBalancerRunning(true, true));
+    assertTrue(admin.isBalancerEnabled());
+    //Set balancer off and check if it actually turned off
+    assertTrue(admin.setBalancerRunning(false,true));
+    assertFalse(admin.isBalancerEnabled());
   }
 }
