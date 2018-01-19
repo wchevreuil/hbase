@@ -3019,6 +3019,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     // We try to set up a batch in the range [firstIndex,lastIndexExclusive)
     int firstIndex = batchOp.nextIndexToProcess;
     int lastIndexExclusive = firstIndex;
+    RowLock prevRowLock = null;
     boolean success = false;
     int noOfPuts = 0, noOfDeletes = 0;
     WALKey walKey = null;
@@ -3091,7 +3092,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         boolean shouldBlock = numReadyToWrite == 0;
         RowLock rowLock = null;
         try {
-           rowLock = getRowLock(mutation.getRow(), true, shouldBlock);
+          rowLock = getRowLockInternal(mutation.getRow(), true, shouldBlock, prevRowLock);
         } catch (IOException ioe) {
           LOG.warn("Failed getting lock in batch put, row="
             + Bytes.toStringBinary(mutation.getRow()), ioe);
@@ -3101,7 +3102,12 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
           // batch and go on with the gotten ones
           break;
         } else {
-          acquiredRowLocks.add(rowLock);
+          if (rowLock != prevRowLock) {
+            // It is a different row now, add this to the acquiredRowLocks and
+            // set prevRowLock to the new returned rowLock
+            acquiredRowLocks.add(rowLock);
+            prevRowLock = rowLock;
+          }
         }
 
         lastIndexExclusive++;
@@ -3437,7 +3443,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
       checkRow(row, "checkAndMutate");
       // Lock row - note that doBatchMutate will relock this row if called
-      RowLock rowLock = getRowLockInternal(get.getRow(), false, true);
+      RowLock rowLock = getRowLockInternal(get.getRow(), false, true, null);
       // wait for all previous transactions to complete (with lock held)
       mvcc.await();
       try {
@@ -3548,7 +3554,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
       checkRow(row, "checkAndRowMutate");
       // Lock row - note that doBatchMutate will relock this row if called
-      RowLock rowLock = getRowLockInternal(get.getRow(), false, true);
+      RowLock rowLock = getRowLockInternal(get.getRow(), false, true, null);
       // wait for all previous transactions to complete (with lock held)
       mvcc.await();
       try {
@@ -5198,11 +5204,17 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     throws IOException {
     // Make sure the row is inside of this region before getting the lock for it.
     checkRow(row, "row lock");
-    return getRowLockInternal(row, readLock, waitForLock);
+    return getRowLockInternal(row, readLock, waitForLock, null);
   }
 
-  protected RowLock getRowLockInternal(byte[] row, boolean readLock, boolean waitForLock)
-    throws IOException {
+  // getRowLock calls checkRow. Call this to skip checkRow.
+  protected RowLock getRowLockInternal(byte[] row)
+  throws IOException {
+    return getRowLockInternal(row, false, true, null);
+  }
+
+  protected RowLock getRowLockInternal(byte[] row, boolean readLock, boolean waitForLock,
+      final RowLock prevRowLock) throws IOException {
     // create an object to use a a key in the row lock map
     HashedBytes rowKey = new HashedBytes(row);
 
@@ -5236,6 +5248,14 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         //
         // This can fail as
         if (readLock) {
+          // For read lock, if the caller has locked the same row previously, it will not try
+          // to acquire the same read lock. It simply returns the previous row lock.
+          RowLockImpl prevRowLockImpl = (RowLockImpl)prevRowLock;
+          if ((prevRowLockImpl != null) && (prevRowLockImpl.getLock() ==
+              rowLockContext.readWriteLock.readLock())) {
+            success = true;
+            return prevRowLock;
+          }
           result = rowLockContext.newReadLock();
         } else {
           result = rowLockContext.newWriteLock();
@@ -5273,6 +5293,17 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
       }
       Thread.currentThread().interrupt();
       throw iie;
+    } catch (Error error) {
+      // The maximum lock count for read lock is 64K (hardcoded), when this maximum count
+      // is reached, it will throw out an Error. This Error needs to be caught so it can
+      // go ahead to process the minibatch with lock acquired.
+      LOG.warn("Error to get row lock for " + Bytes.toStringBinary(row) + ", cause: " + error);
+      IOException ioe = new IOException();
+      ioe.initCause(error);
+      if (traceScope != null) {
+        traceScope.getSpan().addTimelineAnnotation("Error getting row lock");
+      }
+      throw ioe;
     } finally {
       // Clean up the counts just in case this was the thing keeping the context alive.
       if (!success && rowLockContext != null) {
@@ -7085,7 +7116,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         for (byte[] row : rowsToLock) {
           // Attempt to lock all involved rows, throw if any lock times out
           // use a writer lock for mixed reads and writes
-          acquiredRowLocks.add(getRowLockInternal(row, false, true));
+          acquiredRowLocks.add(getRowLockInternal(row, false, true, null));
         }
         // 3. Region lock
         lock(this.updatesLock.readLock(), acquiredRowLocks.isEmpty() ? 1 : acquiredRowLocks.size());
@@ -7316,7 +7347,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     WALKey walKey = null;
     boolean doRollBackMemstore = false;
     try {
-      rowLock = getRowLockInternal(row, false, true);
+      rowLock = getRowLockInternal(row, false, true, null);
       assert rowLock != null;
       try {
         lock(this.updatesLock.readLock());
@@ -7591,7 +7622,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
     List<Cell> memstoreCells = new ArrayList<Cell>();
     Durability effectiveDurability = getEffectiveDurability(increment.getDurability());
     try {
-      rowLock = getRowLockInternal(increment.getRow(), false, true);
+      rowLock = getRowLockInternal(increment.getRow(), false, true, null);
       long txid = 0;
       try {
         lock(this.updatesLock.readLock());
