@@ -25,6 +25,7 @@ import org.apache.hadoop.hbase.RegionTooBusyException;
 import org.apache.hadoop.hbase.RetryImmediatelyException;
 import org.apache.hadoop.hbase.classification.InterfaceAudience;
 import org.apache.hadoop.hbase.classification.InterfaceStability;
+import org.apache.hadoop.hbase.quotas.RpcThrottlingException;
 import org.apache.hadoop.hbase.quotas.ThrottlingException;
 import org.apache.hadoop.ipc.RemoteException;
 
@@ -45,7 +46,8 @@ public final class ClientExceptionsUtil {
 
   public static boolean isSpecialException(Throwable cur) {
     return (cur instanceof RegionMovedException || cur instanceof RegionOpeningException
-        || cur instanceof RegionTooBusyException || cur instanceof ThrottlingException
+        || cur instanceof RegionTooBusyException
+        || cur instanceof ThrottlingException || cur instanceof RpcThrottlingException
         || cur instanceof MultiActionResultTooLarge || cur instanceof RetryImmediatelyException
         || cur instanceof CallQueueTooBigException);
   }
