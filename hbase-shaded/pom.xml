@@ -304,6 +304,11 @@
                                         <pattern>org.apache.avro</pattern>
                                         <shadedPattern>${shaded.prefix}.org.apache.avro</shadedPattern>
                                     </relocation>
+                                    <!-- C6 includes Avro 1.8 and it relocates some stuff here. TODO we should be able to fold in to our guava version -->
+                                    <relocation>
+                                        <pattern>avro.shaded</pattern>
+                                        <shadedPattern>${shaded.prefix}.avro.shaded</shadedPattern>
+                                    </relocation>
                                     <relocation>
                                         <pattern>org.apache.curator</pattern>
                                         <shadedPattern>${shaded.prefix}.org.apache.curator</shadedPattern>
