@@ -275,11 +275,11 @@ public class TestWALReplay {
 
     MultiVersionConcurrencyControl mvcc = new MultiVersionConcurrencyControl();
     HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
-    Path basedir = FSUtils.getTableDir(hbaseWALRootDir, tableName);
+    Path basedir = FSUtils.getTableDir(hbaseRootDir, tableName);
     deleteDir(basedir);
 
     HTableDescriptor htd = createBasic3FamilyHTD(tableName);
-    HRegion region2 = HRegion.createHRegion(hri, hbaseWALRootDir, this.conf, htd);
+    HRegion region2 = HRegion.createHRegion(hri, hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region2);
     final byte [] rowName = tableName.getName();
 
@@ -305,7 +305,7 @@ public class TestWALReplay {
 
     WAL wal3 = createWAL(this.conf);
     try {
-      HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseWALRootDir, hri, htd, wal3);
+      HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal3);
       long seqid = region.getOpenSeqNum();
       // The regions opens with sequenceId as 1. With 6k edits, its sequence number reaches 6k + 1.
       // When opened, this region would apply 6k edits, and increment the sequenceId by 1
@@ -337,13 +337,13 @@ public class TestWALReplay {
     final TableName tableName =
         TableName.valueOf("testRegionMadeOfBulkLoadedFilesOnly");
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
-    final Path basedir = new Path(this.hbaseWALRootDir, tableName.getNameAsString());
+    final Path basedir = new Path(this.hbaseRootDir, tableName.getNameAsString());
     deleteDir(basedir);
     final HTableDescriptor htd = createBasic3FamilyHTD(tableName);
-    HRegion region2 = HRegion.createHRegion(hri, hbaseWALRootDir, this.conf, htd);
+    HRegion region2 = HRegion.createHRegion(hri, hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region2);
     WAL wal = createWAL(this.conf);
-    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseWALRootDir, hri, htd, wal);
+    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal);
 
     byte [] family = htd.getFamilies().iterator().next().getName();
     Path f =  new Path(basedir, "hfile");
@@ -372,7 +372,7 @@ public class TestWALReplay {
         WAL wal2 = createWAL(newConf);
 
         HRegion region2 = HRegion.openHRegion(newConf, FileSystem.get(newConf),
-          hbaseWALRootDir, hri, htd, wal2);
+          hbaseRootDir, hri, htd, wal2);
         long seqid2 = region2.getOpenSeqNum();
         assertTrue(seqid2 > -1);
         assertEquals(rowsInsertedCount, getScannedCount(region2.getScanner(new Scan())));
@@ -403,14 +403,14 @@ public class TestWALReplay {
     final TableName tableName =
         TableName.valueOf("testCompactedBulkLoadedFiles");
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
-    final Path basedir = new Path(this.hbaseWALRootDir, tableName.getNameAsString());
+    final Path basedir = new Path(this.hbaseRootDir, tableName.getNameAsString());
     deleteDir(basedir);
     final HTableDescriptor htd = createBasic3FamilyHTD(tableName);
     HRegion region2 = HRegion.createHRegion(hri,
-        hbaseWALRootDir, this.conf, htd);
+        hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region2);
     WAL wal = createWAL(this.conf);
-    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseWALRootDir, hri, htd, wal);
+    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal);
 
     // Add an edit so something in the WAL
     byte [] row = tableName.getName();
@@ -444,7 +444,7 @@ public class TestWALReplay {
         WAL wal2 = createWAL(newConf);
 
         HRegion region2 = HRegion.openHRegion(newConf, FileSystem.get(newConf),
-            hbaseWALRootDir, hri, htd, wal2);
+            hbaseRootDir, hri, htd, wal2);
         long seqid2 = region2.getOpenSeqNum();
         assertTrue(seqid2 > -1);
         assertEquals(rowsInsertedCount, getScannedCount(region2.getScanner(new Scan())));
@@ -474,19 +474,19 @@ public class TestWALReplay {
     final TableName tableName =
         TableName.valueOf("testReplayEditsWrittenViaHRegion");
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
-    final Path basedir = FSUtils.getTableDir(this.hbaseWALRootDir, tableName);
+    final Path basedir = FSUtils.getTableDir(this.hbaseRootDir, tableName);
     deleteDir(basedir);
     final byte[] rowName = tableName.getName();
     final int countPerFamily = 10;
     final HTableDescriptor htd = createBasic3FamilyHTD(tableName);
     HRegion region3 = HRegion.createHRegion(hri,
-            hbaseWALRootDir, this.conf, htd);
+            hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region3);
     // Write countPerFamily edits into the three families.  Do a flush on one
     // of the families during the load of edits so its seqid is not same as
     // others to test we do right thing when different seqids.
     WAL wal = createWAL(this.conf);
-    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseWALRootDir, hri, htd, wal);
+    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal);
     long seqid = region.getOpenSeqNum();
     boolean first = true;
     for (HColumnDescriptor hcd: htd.getFamilies()) {
@@ -509,7 +509,7 @@ public class TestWALReplay {
     wal.shutdown();
     runWALSplit(this.conf);
     WAL wal2 = createWAL(this.conf);
-    HRegion region2 = HRegion.openHRegion(conf, this.fs, hbaseWALRootDir, hri, htd, wal2);
+    HRegion region2 = HRegion.openHRegion(conf, this.fs, hbaseRootDir, hri, htd, wal2);
     long seqid2 = region2.getOpenSeqNum();
     assertTrue(seqid + result.size() < seqid2);
     final Result result1b = region2.get(g);
@@ -584,19 +584,19 @@ public class TestWALReplay {
     final TableName tableName =
         TableName.valueOf("testReplayEditsWrittenViaHRegion");
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
-    final Path basedir = FSUtils.getTableDir(this.hbaseWALRootDir, tableName);
+    final Path basedir = FSUtils.getTableDir(this.hbaseRootDir, tableName);
     deleteDir(basedir);
     final byte[] rowName = tableName.getName();
     final int countPerFamily = 10;
     final HTableDescriptor htd = createBasic3FamilyHTD(tableName);
     HRegion region3 = HRegion.createHRegion(hri,
-            hbaseWALRootDir, this.conf, htd);
+            hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region3);
     // Write countPerFamily edits into the three families.  Do a flush on one
     // of the families during the load of edits so its seqid is not same as
     // others to test we do right thing when different seqids.
     WAL wal = createWAL(this.conf);
-    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseWALRootDir, hri, htd, wal);
+    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal);
     long seqid = region.getOpenSeqNum();
     for (HColumnDescriptor hcd: htd.getFamilies()) {
       addRegionEdits(rowName, hcd.getName(), countPerFamily, this.ee, region, "x");
@@ -629,7 +629,7 @@ public class TestWALReplay {
     // Let us try to split and recover
     runWALSplit(this.conf);
     WAL wal2 = createWAL(this.conf);
-    HRegion region2 = HRegion.openHRegion(this.conf, this.fs, hbaseWALRootDir, hri, htd, wal2);
+    HRegion region2 = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal2);
     long seqid2 = region2.getOpenSeqNum();
     assertTrue(seqid + result.size() < seqid2);
 
@@ -669,10 +669,10 @@ public class TestWALReplay {
     final TableName tableName =
         TableName.valueOf("testReplayEditsAfterAbortingFlush");
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
-    final Path basedir = FSUtils.getTableDir(this.hbaseWALRootDir, tableName);
+    final Path basedir = FSUtils.getTableDir(this.hbaseRootDir, tableName);
     deleteDir(basedir);
     final HTableDescriptor htd = createBasic3FamilyHTD(tableName);
-    HRegion region3 = HRegion.createHRegion(hri, hbaseWALRootDir, this.conf, htd);
+    HRegion region3 = HRegion.createHRegion(hri, hbaseRootDir, this.conf, htd);
     region3.close();
     region3.getWAL().close();
     // Write countPerFamily edits into the three families. Do a flush on one
@@ -686,7 +686,7 @@ public class TestWALReplay {
     customConf.set(DefaultStoreEngine.DEFAULT_STORE_FLUSHER_CLASS_KEY,
         CustomStoreFlusher.class.getName());
     HRegion region =
-      HRegion.openHRegion(this.hbaseWALRootDir, hri, htd, wal, customConf, rsServices, null);
+      HRegion.openHRegion(this.hbaseRootDir, hri, htd, wal, customConf, rsServices, null);
     int writtenRowCount = 10;
     List<HColumnDescriptor> families = new ArrayList<HColumnDescriptor>(
         htd.getFamilies());
@@ -740,7 +740,7 @@ public class TestWALReplay {
     WAL wal2 = createWAL(this.conf);
     Mockito.doReturn(false).when(rsServices).isAborted();
     HRegion region2 =
-      HRegion.openHRegion(this.hbaseWALRootDir, hri, htd, wal2, this.conf, rsServices, null);
+      HRegion.openHRegion(this.hbaseRootDir, hri, htd, wal2, this.conf, rsServices, null);
     scanner = region2.getScanner(new Scan());
     assertEquals(writtenRowCount, getScannedCount(scanner));
   }
@@ -770,12 +770,12 @@ public class TestWALReplay {
         TableName.valueOf("testReplayEditsWrittenIntoWAL");
     final MultiVersionConcurrencyControl mvcc = new MultiVersionConcurrencyControl();
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
-    final Path basedir = FSUtils.getTableDir(hbaseWALRootDir, tableName);
+    final Path basedir = FSUtils.getTableDir(hbaseRootDir, tableName);
     deleteDir(basedir);
 
     final HTableDescriptor htd = createBasic3FamilyHTD(tableName);
     HRegion region2 = HRegion.createHRegion(hri,
-            hbaseWALRootDir, this.conf, htd);
+            hbaseRootDir, this.conf, htd);
     HRegion.closeHRegion(region2);
     final WAL wal = createWAL(this.conf);
     final byte[] rowName = tableName.getName();
@@ -869,7 +869,7 @@ public class TestWALReplay {
     final TableName tableName = TableName.valueOf(currentTest.getMethodName());
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
     final Path basedir =
-        FSUtils.getTableDir(this.hbaseWALRootDir, tableName);
+        FSUtils.getTableDir(this.hbaseRootDir, tableName);
     deleteDir(basedir);
     final byte[] rowName = tableName.getName();
     final int countPerFamily = 10;
@@ -878,7 +878,7 @@ public class TestWALReplay {
     // Mock the WAL
     MockWAL wal = createMockWAL();
 
-    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseWALRootDir, hri, htd, wal);
+    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal);
     for (HColumnDescriptor hcd : htd.getFamilies()) {
       addRegionEdits(rowName, hcd.getName(), countPerFamily, this.ee, region, "x");
     }
@@ -899,10 +899,10 @@ public class TestWALReplay {
     FileStatus[] listStatus = wal.getFiles();
     assertNotNull(listStatus);
     assertTrue(listStatus.length > 0);
-    WALSplitter.splitLogFile(hbaseWALRootDir, listStatus[0],
+    WALSplitter.splitLogFile(hbaseRootDir, listStatus[0],
         this.fs, this.conf, null, null, null, mode, wals);
     FileStatus[] listStatus1 = this.fs.listStatus(
-      new Path(FSUtils.getTableDir(hbaseWALRootDir, tableName), new Path(hri.getEncodedName(),
+      new Path(FSUtils.getTableDir(hbaseRootDir, tableName), new Path(hri.getEncodedName(),
           "recovered.edits")), new PathFilter() {
         @Override
         public boolean accept(Path p) {
@@ -930,17 +930,17 @@ public class TestWALReplay {
       IllegalAccessException {
     final TableName tableName = TableName.valueOf("testDatalossWhenInputError");
     final HRegionInfo hri = createBasic3FamilyHRegionInfo(tableName);
-    final Path basedir = FSUtils.getTableDir(this.hbaseWALRootDir, tableName);
+    final Path basedir = FSUtils.getTableDir(this.hbaseRootDir, tableName);
     deleteDir(basedir);
     final byte[] rowName = tableName.getName();
     final int countPerFamily = 10;
     final HTableDescriptor htd = createBasic1FamilyHTD(tableName);
-    HRegion region1 = HBaseTestingUtility.createRegionAndWAL(hri, hbaseWALRootDir, this.hbaseWALRootDir, this.conf, htd);
+    HRegion region1 = HBaseTestingUtility.createRegionAndWAL(hri, hbaseRootDir, this.hbaseWALRootDir, this.conf, htd);
     Path regionDir = region1.getRegionFileSystem().getRegionDir();
     HBaseTestingUtility.closeRegionAndWAL(region1);
 
     WAL wal = createWAL(this.conf);
-    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseWALRootDir, hri, htd, wal);
+    HRegion region = HRegion.openHRegion(this.conf, this.fs, hbaseRootDir, hri, htd, wal);
     for (HColumnDescriptor hcd : htd.getFamilies()) {
       addRegionEdits(rowName, hcd.getName(), countPerFamily, this.ee, region, "x");
     }
@@ -1010,12 +1010,12 @@ public class TestWALReplay {
     HRegion region2;
     try {
       // log replay should fail due to the IOException, otherwise we may lose data.
-      region2 = HRegion.openHRegion(conf, spyFs, hbaseWALRootDir, hri, htd, wal2);
+      region2 = HRegion.openHRegion(conf, spyFs, hbaseRootDir, hri, htd, wal2);
       assertEquals(result.size(), region2.get(g).size());
     } catch (IOException e) {
       assertEquals("read over limit", e.getMessage());
     }
-    region2 = HRegion.openHRegion(conf, fs, hbaseWALRootDir, hri, htd, wal2);
+    region2 = HRegion.openHRegion(conf, fs, hbaseRootDir, hri, htd, wal2);
     assertEquals(result.size(), region2.get(g).size());
   }
 
@@ -1044,7 +1044,7 @@ public class TestWALReplay {
   }
 
   private MockWAL createMockWAL() throws IOException {
-    MockWAL wal = new MockWAL(fs, hbaseWALRootDir, logName, conf);
+    MockWAL wal = new MockWAL(fs, hbaseRootDir, logName, conf);
     // Set down maximum recovery so we dfsclient doesn't linger retrying something
     // long gone.
     HBaseTestingUtility.setMaxRecoveryErrorCount(wal.getOutputStream(), 1);

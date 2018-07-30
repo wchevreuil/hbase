@@ -139,7 +139,7 @@ public class WALSplitter {
   public static final boolean SPLIT_SKIP_ERRORS_DEFAULT = false;
 
   // Parameters for split process
-  protected final Path rootDir;
+  protected final Path walDir;
   protected final FileSystem fs;
   protected final Configuration conf;
 
@@ -177,14 +177,14 @@ public class WALSplitter {
   // Min batch size when replay WAL edits
   private final int minBatchSize;
 
-  WALSplitter(final WALFactory factory, Configuration conf, Path rootDir,
+  WALSplitter(final WALFactory factory, Configuration conf, Path walDir,
       FileSystem fs, LastSequenceId idChecker,
       CoordinatedStateManager csm, RecoveryMode mode) {
     this.conf = HBaseConfiguration.create(conf);
     String codecClassName = conf
         .get(WALCellCodec.WAL_CELL_CODEC_CLASS_KEY, WALCellCodec.class.getName());
     this.conf.set(HConstants.RPC_CODEC_CONF_KEY, codecClassName);
-    this.rootDir = rootDir;
+    this.walDir = walDir;
     this.fs = fs;
     this.sequenceIdChecker = idChecker;
     this.csm = (BaseCoordinatedStateManager)csm;
@@ -219,7 +219,7 @@ public class WALSplitter {
    * <p>
    * If the log file has N regions then N recovered.edits files will be produced.
    * <p>
-   * @param rootDir
+   * @param walDir
    * @param logfile
    * @param fs
    * @param conf
@@ -229,10 +229,10 @@ public class WALSplitter {
    * @return false if it is interrupted by the progress-able.
    * @throws IOException
    */
-  public static boolean splitLogFile(Path rootDir, FileStatus logfile, FileSystem fs,
+  public static boolean splitLogFile(Path walDir, FileStatus logfile, FileSystem fs,
       Configuration conf, CancelableProgressable reporter, LastSequenceId idChecker,
       CoordinatedStateManager cp, RecoveryMode mode, final WALFactory factory) throws IOException {
-    WALSplitter s = new WALSplitter(factory, conf, rootDir, fs, idChecker, cp, mode);
+    WALSplitter s = new WALSplitter(factory, conf, walDir, fs, idChecker, cp, mode);
     return s.splitLogFile(logfile, reporter);
   }
 
@@ -298,7 +298,7 @@ public class WALSplitter {
         in = getReader(logfile, skipErrors, reporter);
       } catch (CorruptedLogFileException e) {
         LOG.warn("Could not get reader, corrupted log file " + logPath, e);
-        ZKSplitLog.markCorrupted(rootDir, logfile.getPath().getName(), fs);
+        ZKSplitLog.markCorrupted(walDir, logfile.getPath().getName(), fs);
         isCorrupted = true;
       }
       if (in == null) {
@@ -389,7 +389,7 @@ public class WALSplitter {
       throw iie;
     } catch (CorruptedLogFileException e) {
       LOG.warn("Could not parse, corrupted log file " + logPath, e);
-      csm.getSplitLogWorkerCoordination().markCorrupted(rootDir,
+      csm.getSplitLogWorkerCoordination().markCorrupted(walDir,
         logfile.getPath().getName(), fs);
       isCorrupted = true;
     } catch (IOException e) {
@@ -520,16 +520,16 @@ public class WALSplitter {
    * <code>logEntry</code>: e.g. /hbase/some_table/2323432434/recovered.edits/2332.
    * This method also ensures existence of RECOVERED_EDITS_DIR under the region
    * creating it if necessary.
-   * @param fs
    * @param logEntry
-   * @param rootDir HBase root dir.
+   * @param conf
    * @return Path to file into which to dump split log edits.
    * @throws IOException
    */
   @SuppressWarnings("deprecation")
-  static Path getRegionSplitEditsPath(final FileSystem fs,
-      final Entry logEntry, final Path rootDir, boolean isCreate)
+  static Path getRegionSplitEditsPath(final Entry logEntry, boolean isCreate, Configuration conf)
   throws IOException {
+    FileSystem fs = FileSystem.get(conf);
+    Path rootDir = FSUtils.getRootDir(conf);
     Path tableDir = FSUtils.getTableDir(rootDir, logEntry.getKey().getTablename());
     String encodedRegionName = Bytes.toString(logEntry.getKey().getEncodedRegionName());
     Path regiondir = HRegion.getRegionDir(tableDir, encodedRegionName);
@@ -1347,6 +1347,7 @@ public class WALSplitter {
           public Void call() throws Exception {
             WriterAndPath wap = (WriterAndPath) writersEntry.getValue();
             if (LOG.isTraceEnabled()) LOG.trace("Closing " + wap.p);
+            FileSystem rootFs = FileSystem.get(conf);
             try {
               wap.w.close();
             } catch (IOException ioe) {
@@ -1361,7 +1362,7 @@ public class WALSplitter {
             }
             if (wap.editsWritten == 0) {
               // just remove the empty recovered.edits file
-              if (fs.exists(wap.p) && !fs.delete(wap.p, false)) {
+              if (rootFs.exists(wap.p) && !rootFs.delete(wap.p, false)) {
                 LOG.warn("Failed deleting empty " + wap.p);
                 throw new IOException("Failed deleting empty  " + wap.p);
               }
@@ -1371,7 +1372,7 @@ public class WALSplitter {
             Path dst = getCompletedRecoveredEditsFilePath(wap.p,
               regionMaximumEditLogSeqNum.get(writersEntry.getKey()));
             try {
-              if (!dst.equals(wap.p) && fs.exists(dst)) {
+              if (!dst.equals(wap.p) && rootFs.exists(dst)) {
                 LOG.warn("Found existing old edits file. It could be the "
                     + "result of a previous failed split attempt. Deleting " + dst + ", length="
                     + fs.getFileStatus(dst).getLen());
@@ -1383,8 +1384,8 @@ public class WALSplitter {
               // Skip the unit tests which create a splitter that reads and
               // writes the data without touching disk.
               // TestHLogSplit#testThreading is an example.
-              if (fs.exists(wap.p)) {
-                if (!fs.rename(wap.p, dst)) {
+              if (rootFs.exists(wap.p)) {
+                if (!rootFs.rename(wap.p, dst)) {
                   throw new IOException("Failed renaming " + wap.p + " to " + dst);
                 }
                 LOG.info("Rename " + wap.p + " to " + dst);
@@ -1490,7 +1491,7 @@ public class WALSplitter {
       if (blacklistedRegions.contains(region)) {
         return null;
       }
-      ret = createWAP(region, entry, rootDir);
+      ret = createWAP(region, entry);
       if (ret == null) {
         blacklistedRegions.add(region);
         return null;
@@ -1502,16 +1503,17 @@ public class WALSplitter {
     /**
      * @return a path with a write for that path. caller should close.
      */
-    private WriterAndPath createWAP(byte[] region, Entry entry, Path rootdir) throws IOException {
-      Path regionedits = getRegionSplitEditsPath(fs, entry, rootdir, true);
+    private WriterAndPath createWAP(byte[] region, Entry entry) throws IOException {
+      Path regionedits = getRegionSplitEditsPath(entry, true, conf);
       if (regionedits == null) {
         return null;
       }
-      if (fs.exists(regionedits)) {
+      FileSystem rootFs = FileSystem.get(conf);
+      if (rootFs.exists(regionedits)) {
         LOG.warn("Found old edits file. It could be the "
             + "result of a previous failed split attempt. Deleting " + regionedits + ", length="
-            + fs.getFileStatus(regionedits).getLen());
-        if (!fs.delete(regionedits, false)) {
+            + rootFs.getFileStatus(regionedits).getLen());
+        if (!rootFs.delete(regionedits, false)) {
           LOG.warn("Failed delete of old " + regionedits);
         }
       }
