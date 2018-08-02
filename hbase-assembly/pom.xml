@@ -37,6 +37,22 @@
   </properties>
   <build>
     <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <executions>
+          <!-- hbase-spark is ok in the assembly -->
+          <execution>
+            <id>banned-hbase-spark</id>
+           <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <skip>true</skip>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
       <!-- licensing info from our dependencies -->
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -279,6 +295,15 @@
        <groupId>org.apache.hbase</groupId>
        <artifactId>hbase-resource-bundle</artifactId>
        <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-spark</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-spark-it</artifactId>
+      <type>test-jar</type>
     </dependency>
     <dependency>
       <groupId>org.apache.httpcomponents</groupId>

@@ -86,6 +86,8 @@
     <module>hbase-checkstyle</module>
     <module>hbase-external-blockcache</module>
     <module>hbase-shaded</module>
+    <module>hbase-spark</module>
+    <module>hbase-spark-it</module>
     <module>hbase-archetypes</module>
     <module>hbase-metrics-api</module>
     <module>hbase-metrics</module>
@@ -1040,6 +1042,38 @@
             </configuration>
           </execution>
           <execution>
+            <id>banned-scala</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <excludes>
+                    <exclude>org.scala-lang:scala-library</exclude>
+                  </excludes>
+                  <message>We don't allow Scala outside of the hbase-spark module, see HBASE-13992.</message>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+          <execution>
+            <id>banned-hbase-spark</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <bannedDependencies>
+                  <excludes>
+                    <exclude>org.apache.hbase:hbase-spark</exclude>
+                  </excludes>
+                  <message>We don't allow other modules to depend on hbase-spark, see HBASE-13992.</message>
+                </bannedDependencies>
+              </rules>
+            </configuration>
+          </execution>
+          <execution>
             <id>check-aggregate-license</id>
             <!-- must check after LICENSE is built at 'generate-resources' -->
             <phase>process-resources</phase>
@@ -1304,6 +1338,12 @@
         <inherited>true</inherited>
         <extensions>true</extensions>
       </plugin>
+      <plugin>
+        <!-- CLOUDERA-BUILD - use up-to-date scala-maven-plugin instead of maven-scala-plugin -->
+        <artifactId>scala-maven-plugin</artifactId>
+        <groupId>net.alchim31.maven</groupId>
+        <version>3.2.2</version>
+      </plugin>
     </plugins>
   </build>
   <properties>
@@ -1427,12 +1467,15 @@
     <maven.jar.version>3.0.2</maven.jar.version>
     <maven.javadoc.version>3.0.0</maven.javadoc.version>
     <maven.patch.version>1.2</maven.patch.version>
+    <maven.scala.version>2.15.2</maven.scala.version>
     <maven.shade.version>3.0.0</maven.shade.version>
     <maven.site.version>3.4</maven.site.version>
     <maven.source.version>3.0.1</maven.source.version>
     <maven.warbucks.version>1.1.0</maven.warbucks.version>
     <os.maven.version>1.5.0.Final</os.maven.version>
     <plexus.errorprone.javac.version>2.8.2</plexus.errorprone.javac.version>
+    <scala.maven.version>3.2.2</scala.maven.version>
+    <scalatest.maven.version>1.0</scalatest.maven.version>
     <spotbugs.version>3.1.0-RC3</spotbugs.version>
     <wagon.ssh.version>2.12</wagon.ssh.version>
     <xml.maven.version>1.0.1</xml.maven.version>
@@ -1724,6 +1767,18 @@
         <artifactId>hbase-resource-bundle</artifactId>
         <groupId>org.apache.hbase</groupId>
         <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>hbase-spark</artifactId>
+        <groupId>org.apache.hbase</groupId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
+        <artifactId>hbase-spark-it</artifactId>
+        <groupId>org.apache.hbase</groupId>
+        <version>${project.version}</version>
+        <type>test-jar</type>
+        <scope>test</scope>
       </dependency>
       <dependency>
         <artifactId>hbase-zookeeper</artifactId>
@@ -3488,6 +3543,7 @@
               <sourceFileExcludes>
                 <exclude>**/generated/*</exclude>
                 <exclude>**/protobuf/*</exclude>
+                <exclude>**/*.scala</exclude>
               </sourceFileExcludes>
               <excludePackageNames>org.apache.hadoop.hbase.tmpl.common:com.google.protobuf:org.apache.hadoop.hbase.generated*</excludePackageNames>
               <show>private</show> <!-- (shows all classes and members) -->
@@ -3682,6 +3738,11 @@
         </configuration>
       </plugin>
 
+      <plugin>
+        <groupId>org.scala-tools</groupId>
+        <artifactId>maven-scala-plugin</artifactId>
+        <version>${maven.scala.version}</version>
+      </plugin>
     </plugins>
   </reporting>
   <distributionManagement>

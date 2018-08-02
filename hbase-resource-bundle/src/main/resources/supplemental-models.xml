@@ -2892,4 +2892,43 @@ Copyright (c) 2007-2017 The JRuby project
       </licenses>
     </project>
   </supplement>
+
+  <supplement>
+    <project>
+      <groupId>org.scala-lang</groupId>
+      <artifactId>scala-library</artifactId>
+      <version>2.11.6</version>
+
+      <organization>
+        <name>Typesafe Inc., EPFL</name>
+        <url>http://www.scala-lang.org</url>
+      </organization>
+      <licenses>
+        <license>
+          <name>BSD license</name> <!-- the Scala license is BDS 3 clause verbatim -->
+          <url>https://github.com/scala/scala/blob/v2.11.6/doc/LICENSE.md</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+    </project>
+  </supplement>
+  <supplement>
+    <project>
+      <groupId>org.scala-lang.modules</groupId>
+      <artifactId>scala-parser-combinators_2.11</artifactId>
+      <version>1.0.4</version>
+
+      <organization>
+        <name>Typesafe Inc., EPFL</name>
+        <url>http://www.scala-lang.org</url>
+      </organization>
+      <licenses>
+        <license>
+          <name>BSD license</name> <!-- the Scala license is BDS 3 clause verbatim -->
+          <url>https://github.com/scala/scala-parser-combinators/blob/v1.0.4/LICENSE.md</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+    </project>
+  </supplement>
 </supplementalDataModels>
