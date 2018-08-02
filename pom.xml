@@ -1468,7 +1468,13 @@
     <surefire.testFailureIgnore>false</surefire.testFailureIgnore>
     <test.output.tofile>true</test.output.tofile>
     <surefire.timeout>900</surefire.timeout>
-    <test.exclude.pattern></test.exclude.pattern>
+
+    <!-- CDH - For flaky tests exclusion -->
+    <test.exclude></test.exclude>
+    <test.exclude.pattern>**/${test.exclude}.java</test.exclude.pattern>
+    <!-- CDH - Test inclusion patterns -->
+    <unittest.include>**/Test*.java</unittest.include>
+    <integrationtest.include>**/IntegrationTest*.java</integrationtest.include>
     <!-- default Xmx value is 2800m. Use -Dsurefire.Xmx=xxg to run tests with different JVM Xmx value -->
     <surefire.Xmx>2800m</surefire.Xmx>
     <surefire.cygwinXmx>2800m</surefire.cygwinXmx>

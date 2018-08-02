@@ -1,0 +1,17 @@
+**/TestAccessController.java
+**/TestAssignmentManagerMetrics.java
+**/TestAsyncTableBatch.java
+**/TestDefaultLoadBalancer.java
+**/TestExportSnapshot.java
+**/TestFailedAppendAndSync.java
+**/TestHFileCleaner.java
+**/TestHRegion.java
+**/TestHRegionWithInMemoryFlush.java
+**/TestMasterReplication.java
+**/TestMergeTableRegionsProcedure.java
+**/TestMultiParallel.java
+**/TestProcedurePriority.java
+**/TestReplicasClient.java
+**/TestServerCrashProcedure.java
+**/TestSimpleRpcScheduler.java
+**/TestThriftHttpServer.java
