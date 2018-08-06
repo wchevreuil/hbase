@@ -59,6 +59,16 @@ public interface WALKey extends SequenceId, Comparable<WALKey> {
   TableName getTableName();
 
   /**
+   * Retained for backwards compatibility with K/V indexer
+   * @deprecated Use {@link #getTableName()} instead
+   * @return table name
+   */
+  @Deprecated
+  default TableName getTablename() {
+    return getTableName();
+  }
+
+  /**
    * @return the write time
    */
   long getWriteTime();
