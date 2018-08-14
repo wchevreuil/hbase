@@ -104,7 +104,8 @@ public class TestFSHDFSUtils {
     Mockito.verify(dfs, Mockito.times(1)).isFileClosed(FILE);
   }
 
-  void testIsSameHdfs(int nnport) throws IOException {
+  @Test
+  public void testIsSameHdfs() throws IOException {
     try {
       Class dfsUtilClazz = Class.forName("org.apache.hadoop.hdfs.DFSUtil");
       dfsUtilClazz.getMethod("getNNServiceRpcAddresses", Configuration.class);
@@ -114,7 +115,7 @@ public class TestFSHDFSUtils {
     }
 
     Configuration conf = HBaseConfiguration.create();
-    Path srcPath = new Path("hdfs://localhost:" + nnport + "/");
+    Path srcPath = new Path("hdfs://localhost:8020/");
     Path desPath = new Path("hdfs://127.0.0.1/");
     FileSystem srcFs = srcPath.getFileSystem(conf);
     FileSystem desFs = desPath.getFileSystem(conf);
@@ -125,7 +126,7 @@ public class TestFSHDFSUtils {
     desFs = desPath.getFileSystem(conf);
     assertTrue(!FSHDFSUtils.isSameHdfs(conf, srcFs, desFs));
 
-    desPath = new Path("hdfs://127.0.1.1:" + nnport + "/");
+    desPath = new Path("hdfs://127.0.1.1:8020/");
     desFs = desPath.getFileSystem(conf);
     assertTrue(!FSHDFSUtils.isSameHdfs(conf, srcFs, desFs));
 
@@ -133,35 +134,19 @@ public class TestFSHDFSUtils {
     conf.set("dfs.nameservices", "haosong-hadoop");
     conf.set("dfs.ha.namenodes.haosong-hadoop", "nn1,nn2");
     conf.set("dfs.client.failover.proxy.provider.haosong-hadoop",
-        "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider");
+            "org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider");
 
-    conf.set("dfs.namenode.rpc-address.haosong-hadoop.nn1", "127.0.0.1:"+ nnport);
+    conf.set("dfs.namenode.rpc-address.haosong-hadoop.nn1", "127.0.0.1:8020");
     conf.set("dfs.namenode.rpc-address.haosong-hadoop.nn2", "127.10.2.1:8000");
     desPath = new Path("/");
     desFs = desPath.getFileSystem(conf);
     assertTrue(FSHDFSUtils.isSameHdfs(conf, srcFs, desFs));
 
-    conf.set("dfs.namenode.rpc-address.haosong-hadoop.nn1", "127.10.2.1:"+nnport);
+    conf.set("dfs.namenode.rpc-address.haosong-hadoop.nn1", "127.10.2.1:8020");
     conf.set("dfs.namenode.rpc-address.haosong-hadoop.nn2", "127.0.0.1:8000");
     desPath = new Path("/");
     desFs = desPath.getFileSystem(conf);
     assertTrue(!FSHDFSUtils.isSameHdfs(conf, srcFs, desFs));
-  }
-
-  @Test
-  public void testIsSameHdfs() throws IOException {
-    String hadoopVersion = org.apache.hadoop.util.VersionInfo.getVersion();
-    LOG.info("hadoop version is: "  + hadoopVersion);
-    boolean isHadoop3_0_0 = hadoopVersion.startsWith("3.0.0");
-    if (isHadoop3_0_0) {
-      // Hadoop 3.0.0 alpha1+ ~ 3.0.0 GA changed default nn port to 9820.
-      // See HDFS-9427
-      testIsSameHdfs(9820);
-    } else {
-      // pre hadoop 3.0.0 defaults to port 8020
-      // Hadoop 3.0.1 changed it back to port 8020. See HDFS-12990
-      testIsSameHdfs(8020);
-    }
   }
 
   /**
