@@ -15,3 +15,8 @@
 **/TestServerCrashProcedure.java
 **/TestSimpleRpcScheduler.java
 **/TestThriftHttpServer.java
+
+**/TestRegionMoveAndAbandon.java
+**/TestReplicator.java
+**/TestServerCrashProcedureStuck.java
+**/TestMasterOperationsForRegionReplicas.java
