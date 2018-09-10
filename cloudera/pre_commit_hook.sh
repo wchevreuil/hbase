@@ -148,7 +148,7 @@ cd "${COMPONENT}"
 CDH_PARENT=`"${GIT}" log --first-parent --oneline | head -2 | tail -1 |  cut -d ' ' -f 1`
 
 # Create the patch via diff.  This "works" with regular commits and merge commits
-"${GIT}" diff "${CDH_PARENT}".."${GIT_COMMIT}" >"${PATCHFILE}"
+"${GIT}" diff --full-index "${CDH_PARENT}".."${GIT_COMMIT}" >"${PATCHFILE}"
 
 # Check out the commit under review
 "${GIT}" checkout "${GERRIT_BRANCH}"
