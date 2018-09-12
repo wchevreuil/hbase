@@ -81,8 +81,9 @@ fi
 # Right now running on Docker is broken because it can't find our custom build of git
 if [[ "true" = "${RUN_IN_DOCKER}" ]]; then
   YETUS_ARGS=(--docker --findbugs-home=/opt/findbugs ${YETUS_ARGS[@]})
-  if [ -d "${COMPONENT}/dev-support/docker/Dockerfile" ]; then
-    YETUS_ARGS=(--dockerfile="${COMPONENT}/dev-support/docker/Dockerfile" ${YETUS_ARGS[@]})
+  if [ -f "${COMPONENT}/cloudera/Dockerfile" ]; then
+    YETUS_ARGS=(--dockerfile="${COMPONENT}/cloudera/Dockerfile" ${YETUS_ARGS[@]})
+    YETUS_ARGS=(--java-home=/usr/lib/jvm/zulu-7-amd64 ${YETUS_ARGS[@]})
   fi
 else
   YETUS_ARGS=(--findbugs-home=/opt/toolchain/findbugs-1.3.9 ${YETUS_ARGS[@]})
