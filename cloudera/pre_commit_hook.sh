@@ -1,11 +1,6 @@
 # CLOUDERA-BUILD
-export JAVA7_BUILD=true
-. /opt/toolchain/toolchain.sh
-
-# TODO: run binary compatibility check
-
-# shellcheck disable=SC2034
-MAVEN_HOME=${MAVEN_3_2_2_HOME}
+set -e
+set -o pipefail
 
 if [[ "true" = "${DEBUG}" ]]; then
   set -x
@@ -61,8 +56,6 @@ if [ ! -x "${TESTPATCHBIN}" ] && [ -n "${TEST_FRAMEWORK}" ] && [ -d "${TEST_FRAM
   exit 1
 fi
 
-# Work around KITCHEN-11523
-GIT="${WORKSPACE}/git/bin/git"
 
 cd "${WORKSPACE}"
 
@@ -81,10 +74,11 @@ fi
 # Right now running on Docker is broken because it can't find our custom build of git
 if [[ "true" = "${RUN_IN_DOCKER}" ]]; then
   YETUS_ARGS=(--docker --findbugs-home=/opt/findbugs ${YETUS_ARGS[@]})
-  if [ -f "${COMPONENT}/cloudera/Dockerfile" ]; then
+  if [ -r "${COMPONENT}/cloudera/Dockerfile" ]; then
     YETUS_ARGS=(--dockerfile="${COMPONENT}/cloudera/Dockerfile" ${YETUS_ARGS[@]})
     YETUS_ARGS=(--java-home=/usr/lib/jvm/zulu-7-amd64 ${YETUS_ARGS[@]})
   fi
+  unset JAVA_HOME
 else
   YETUS_ARGS=(--findbugs-home=/opt/toolchain/findbugs-1.3.9 ${YETUS_ARGS[@]})
 fi
@@ -106,11 +100,29 @@ if [ -z "${GIT_COMMIT}" ] || [ -z "${GERRIT_BRANCH}" ]; then
 fi
 PATCHFILE=$(mktemp --quiet --tmpdir="${PATCHPROCESS}" "hbase.precommit.test.XXXXXX-${GERRIT_BRANCH}.patch")
 cd "${COMPONENT}"
-"${GIT}" format-patch --stdout -1 "${GIT_COMMIT}" >"${PATCHFILE}"
-"${GIT}" checkout "${GERRIT_BRANCH}"
-# NOTE will break if this is a merge commit
-"${GIT}" reset --hard "${GIT_COMMIT}^"
-"${GIT}" branch --set-upstream-to="origin/${GERRIT_BRANCH}" "${GERRIT_BRANCH}"
+git format-patch --stdout -1 "${GIT_COMMIT}" >"${PATCHFILE}"
+# Yetus in robot mode needs an upstream git branch that it can use as the source
+# of truth about what the working checkout should look like before it applies
+# the patch. Unfortunately, Gerrit doesn't maintain a breanch for each proposed
+# changeset so we can't just add GIT_BRANCH as a remote.  origin/GERRIT_BRANCH
+# points to the head of changes that have been merged already. So if we want to
+# support chains of proposed reviews such that those after the first can build,
+# we have to construct the remote we want.
+# NOTE All this will break if HEAD is a merge commit
+rm -rf "${WORKSPACE}/fake_upstream"
+git clone --shared .git "${WORKSPACE}/fake_upstream"
+(
+  cd "${WORKSPACE}/fake_upstream"
+  git checkout "${GERRIT_BRANCH}"
+  git reset --hard "${GIT_COMMIT}^"
+)
+git remote add fake-upstream "${WORKSPACE}/fake_upstream/.git"
+git fetch fake-upstream
+
+git checkout "${GERRIT_BRANCH}"
+git reset --hard "${GIT_COMMIT}^"
+git branch --set-upstream-to="fake-upstream/${GERRIT_BRANCH}" "${GERRIT_BRANCH}"
+git status
 cd "${WORKSPACE}"
 
 # invoke test-patch and send results to a known HTML file.
@@ -119,7 +131,6 @@ if ! /bin/bash "${TESTPATCHBIN}" \
         --patch-dir="${PATCHPROCESS}" \
         --basedir="${COMPONENT}" \
         --mvn-custom-repos \
-        --git-cmd="${GIT}" \
         --branch="${GERRIT_BRANCH}" \
         --html-report-file="${PATCHPROCESS}/report_output.html" \
         "${PATCHFILE}" ; then

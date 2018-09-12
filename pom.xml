@@ -2794,9 +2794,7 @@
       </activation>
       <properties>
         <surefire.firstPartForkCount>1</surefire.firstPartForkCount>
-        <!-- CDH specific change: For unit testing we use machines with 4 cores only,
-             so reducing the number of forks. -->
-        <surefire.secondPartForkCount>1</surefire.secondPartForkCount>
+        <surefire.secondPartForkCount>5</surefire.secondPartForkCount>
         <surefire.skipFirstPart>false</surefire.skipFirstPart>
         <surefire.skipSecondPart>false</surefire.skipSecondPart>
         <surefire.firstPartGroups>org.apache.hadoop.hbase.testclassification.SmallTests</surefire.firstPartGroups>
