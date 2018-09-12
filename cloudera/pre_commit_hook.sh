@@ -11,7 +11,6 @@
 # One minor complication is that yetus depends having a patch file to
 # apply to the current branch.
 
-
 # Entering this script, there are few required env var args and
 # optional args:
 echo "GIT_COMMIT (hash of push under review):   $GIT_COMMIT"
@@ -159,6 +158,7 @@ CDH_PARENT=`"${GIT}" log --first-parent --oneline | head -2 | tail -1 |  cut -d 
 cd "${WORKSPACE}"
 
 # activate mvn-gbn wrapper
+export PATH="$(dirname "$(which mvn-gbn-wrapper)")":"$PATH"
 mv "$(which mvn-gbn-wrapper)" "$(dirname "$(which mvn-gbn-wrapper)")/mvn"
 
 # invoke test-patch and send results to a known HTML file.
