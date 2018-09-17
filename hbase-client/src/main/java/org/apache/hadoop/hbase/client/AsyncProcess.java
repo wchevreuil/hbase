@@ -1179,7 +1179,7 @@ class AsyncProcess {
       Retry canRetry = errorsByServer.canRetryMore(numAttempt)
           ? Retry.YES : Retry.NO_RETRIES_EXHAUSTED;
 
-      if (tableName == null) {
+      if (tableName == null && ClientExceptionsUtil.isMetaClearingException(t)) {
         // tableName is null when we made a cross-table RPC call.
         connection.clearCaches(server);
       }

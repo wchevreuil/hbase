@@ -90,8 +90,7 @@ public class MetaCache {
     // checking is actually the last region in the table.
     byte[] endKey = possibleRegion.getRegionLocation().getRegionInfo().getEndKey();
     if (Bytes.equals(endKey, HConstants.EMPTY_END_ROW) ||
-        getRowComparator(tableName).compareRows(
-            endKey, 0, endKey.length, row, 0, row.length) > 0) {
+        getRowComparator(tableName).compareRows(endKey, 0, endKey.length, row, 0, row.length) > 0) {
       if (metrics != null) metrics.incrMetaCacheHit();
       return possibleRegion;
     }
@@ -129,7 +128,7 @@ public class MetaCache {
 
     // If the server in cache sends us a redirect, assume it's always valid.
     HRegionLocation oldLocation = oldLocations.getRegionLocation(
-      location.getRegionInfo().getReplicaId());
+        location.getRegionInfo().getReplicaId());
     boolean force = oldLocation != null && oldLocation.getServerName() != null
         && oldLocation.getServerName().equals(source);
 
@@ -275,8 +274,13 @@ public class MetaCache {
       }
       this.cachedServers.remove(serverName);
     }
-    if (deletedSomething && LOG.isTraceEnabled()) {
-      LOG.trace("Removed all cached region locations that map to " + serverName);
+    if (deletedSomething) {
+      if (metrics != null) {
+        metrics.incrMetaCacheNumClearServer();
+      }
+      if (LOG.isTraceEnabled()) {
+        LOG.trace("Removed all cached region locations that map to " + serverName);
+      }
     }
   }
 
@@ -303,38 +307,13 @@ public class MetaCache {
     if (regionLocations != null) {
       byte[] startKey = regionLocations.getRegionLocation().getRegionInfo().getStartKey();
       boolean removed = tableLocations.remove(startKey, regionLocations);
-      if (removed && LOG.isTraceEnabled()) {
-        LOG.trace("Removed " + regionLocations + " from cache");
-      }
-    }
-  }
-
-  /**
-   * Delete a cached location with specific replicaId.
-   * @param tableName tableName
-   * @param row row key
-   * @param replicaId region replica id
-   */
-  public void clearCache(final TableName tableName, final byte [] row, int replicaId) {
-    ConcurrentMap<byte[], RegionLocations> tableLocations = getTableLocations(tableName);
-
-    RegionLocations regionLocations = getCachedLocation(tableName, row);
-    if (regionLocations != null) {
-      HRegionLocation toBeRemoved = regionLocations.getRegionLocation(replicaId);
-      if (toBeRemoved != null) {
-        RegionLocations updatedLocations = regionLocations.remove(replicaId);
-        byte[] startKey = regionLocations.getRegionLocation().getRegionInfo().getStartKey();
-        boolean removed;
-        if (updatedLocations.isEmpty()) {
-          removed = tableLocations.remove(startKey, regionLocations);
-        } else {
-          removed = tableLocations.replace(startKey, regionLocations, updatedLocations);
+      if (removed) {
+        if (metrics != null) {
+          metrics.incrMetaCacheNumClearRegion();
         }
 
-        if (removed) {
-          if (LOG.isTraceEnabled()) {
-            LOG.trace("Removed " + toBeRemoved + " from cache");
-          }
+        if (LOG.isTraceEnabled()) {
+          LOG.trace("Removed " + regionLocations + " from cache");
         }
       }
     }
@@ -357,9 +336,14 @@ public class MetaCache {
         } else {
           removed = tableLocations.replace(startKey, regionLocations, updatedLocations);
         }
-        if (removed && LOG.isTraceEnabled()) {
-          LOG.trace("Removed locations of table: " + tableName + " ,row: " + Bytes.toString(row)
-            + " mapping to server: " + serverName + " from cache");
+        if (removed) {
+          if (metrics != null) {
+            metrics.incrMetaCacheNumClearRegion();
+          }
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Removed locations of table: " + tableName + " ,row: " + Bytes.toString(row)
+              + " mapping to server: " + serverName + " from cache");
+          }
         }
       }
     }
@@ -376,15 +360,20 @@ public class MetaCache {
       HRegionLocation oldLocation = regionLocations.getRegionLocation(hri.getReplicaId());
       if (oldLocation == null) return;
       RegionLocations updatedLocations = regionLocations.remove(oldLocation);
-      boolean removed = false;
+      boolean removed;
       if (updatedLocations != regionLocations) {
         if (updatedLocations.isEmpty()) {
           removed = tableLocations.remove(hri.getStartKey(), regionLocations);
         } else {
           removed = tableLocations.replace(hri.getStartKey(), regionLocations, updatedLocations);
         }
-        if (removed && LOG.isTraceEnabled()) {
-          LOG.trace("Removed " + oldLocation + " from cache");
+        if (removed) {
+          if (metrics != null) {
+            metrics.incrMetaCacheNumClearRegion();
+          }
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Removed " + oldLocation + " from cache");
+          }
         }
       }
     }
@@ -399,15 +388,20 @@ public class MetaCache {
     RegionLocations regionLocations = tableLocations.get(location.getRegionInfo().getStartKey());
     if (regionLocations != null) {
       RegionLocations updatedLocations = regionLocations.remove(location);
-      boolean removed = false;
+      boolean removed;
       if (updatedLocations != regionLocations) {
         if (updatedLocations.isEmpty()) {
           removed = tableLocations.remove(location.getRegionInfo().getStartKey(), regionLocations);
         } else {
           removed = tableLocations.replace(location.getRegionInfo().getStartKey(), regionLocations, updatedLocations);
         }
-        if (removed && LOG.isTraceEnabled()) {
-          LOG.trace("Removed " + location + " from cache");
+        if (removed) {
+          if (metrics != null) {
+            metrics.incrMetaCacheNumClearRegion();
+          }
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Removed " + location + " from cache");
+          }
         }
       }
     }
