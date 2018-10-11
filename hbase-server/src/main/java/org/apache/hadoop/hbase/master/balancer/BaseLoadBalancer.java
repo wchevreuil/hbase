@@ -34,6 +34,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.ClusterMetrics;
@@ -50,16 +51,17 @@ import org.apache.hadoop.hbase.master.LoadBalancer;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.RackManager;
 import org.apache.hadoop.hbase.master.RegionPlan;
+import org.apache.hadoop.hbase.master.assignment.AssignmentManager;
+import org.apache.hadoop.hbase.master.assignment.RegionStates;
 import org.apache.hadoop.hbase.master.balancer.BaseLoadBalancer.Cluster.Action.Type;
-import org.apache.yetus.audience.InterfaceAudience;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
 import org.apache.hbase.thirdparty.com.google.common.base.Joiner;
 import org.apache.hbase.thirdparty.com.google.common.collect.ArrayListMultimap;
 import org.apache.hbase.thirdparty.com.google.common.collect.Lists;
 import org.apache.hbase.thirdparty.com.google.common.collect.Sets;
+import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The base class for load balancers. It provides the the functions used to by
@@ -741,7 +743,6 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       int region = regionsToIndex.get(regionInfo);
 
       int primary = regionIndexToPrimaryIndex[region];
-
       // there is a subset relation for server < host < rack
       // check server first
 
@@ -1262,7 +1263,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       return assignments;
     }
 
-    Cluster cluster = createCluster(servers, regions);
+    Cluster cluster = createCluster(servers, regions, false);
     List<RegionInfo> unassignedRegions = new ArrayList<>();
 
     roundRobinAssignment(cluster, regions, unassignedRegions,
@@ -1271,13 +1272,30 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     List<RegionInfo> lastFewRegions = new ArrayList<>();
     // assign the remaining by going through the list and try to assign to servers one-by-one
     int serverIdx = RANDOM.nextInt(numServers);
-    for (RegionInfo region : unassignedRegions) {
+    OUTER : for (RegionInfo region : unassignedRegions) {
       boolean assigned = false;
-      for (int j = 0; j < numServers; j++) { // try all servers one by one
+      INNER : for (int j = 0; j < numServers; j++) { // try all servers one by one
         ServerName serverName = servers.get((j + serverIdx) % numServers);
         if (!cluster.wouldLowerAvailability(region, serverName)) {
           List<RegionInfo> serverRegions =
               assignments.computeIfAbsent(serverName, k -> new ArrayList<>());
+          if (!RegionReplicaUtil.isDefaultReplica(region.getReplicaId())) {
+            // if the region is not a default replica
+            // check if the assignments map has the other replica region on this server
+            for (RegionInfo hri : serverRegions) {
+              if (RegionReplicaUtil.isReplicasForSameRegion(region, hri)) {
+                if (LOG.isTraceEnabled()) {
+                  LOG.trace("Skipping the server, " + serverName
+                      + " , got the same server for the region " + region);
+                }
+                // do not allow this case. The unassignedRegions we got because the
+                // replica region in this list was not assigned because of lower availablity issue.
+                // So when we assign here we should ensure that as far as possible the server being
+                // selected does not have the server where the replica region was not assigned.
+                continue INNER; // continue the inner loop, ie go to the next server
+              }
+            }
+          }
           serverRegions.add(region);
           cluster.doAssignRegion(region, serverName);
           serverIdx = (j + serverIdx + 1) % numServers; //remain from next server
@@ -1301,12 +1319,19 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     return assignments;
   }
 
-  protected Cluster createCluster(List<ServerName> servers, Collection<RegionInfo> regions) {
+  protected Cluster createCluster(List<ServerName> servers, Collection<RegionInfo> regions,
+      boolean hasRegionReplica) {
     // Get the snapshot of the current assignments for the regions in question, and then create
     // a cluster out of it. Note that we might have replicas already assigned to some servers
     // earlier. So we want to get the snapshot to see those assignments, but this will only contain
     // replicas of the regions that are passed (for performance).
-    Map<ServerName, List<RegionInfo>> clusterState = getRegionAssignmentsByServer(regions);
+    Map<ServerName, List<RegionInfo>> clusterState = null;
+    if (!hasRegionReplica) {
+      clusterState = getRegionAssignmentsByServer(regions);
+    } else {
+      // for the case where we have region replica it is better we get the entire cluster's snapshot
+      clusterState = getRegionAssignmentsByServer(null);
+    }
 
     for (ServerName server : servers) {
       if (!clusterState.containsKey(server)) {
@@ -1355,7 +1380,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     final List<ServerName> finalServers = idleServers.isEmpty() ?
             servers : idleServers;
     List<RegionInfo> regions = Lists.newArrayList(regionInfo);
-    Cluster cluster = createCluster(finalServers, regions);
+    Cluster cluster = createCluster(finalServers, regions, false);
     return randomAssignment(cluster, regionInfo, finalServers);
   }
 
@@ -1427,10 +1452,21 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
     int numRandomAssignments = 0;
     int numRetainedAssigments = 0;
-
+    boolean hasRegionReplica = false;
     for (Map.Entry<RegionInfo, ServerName> entry : regions.entrySet()) {
       RegionInfo region = entry.getKey();
       ServerName oldServerName = entry.getValue();
+      // In the current set of regions even if one has region replica let us go with
+      // getting the entire snapshot
+      if (this.services != null) { // for tests
+        AssignmentManager am = this.services.getAssignmentManager();
+        if (am != null) {
+          RegionStates rss = am.getRegionStates();
+          if (!hasRegionReplica && rss.isReplicaAvailableForRegion(region)) {
+            hasRegionReplica = true;
+          }
+        }
+      }
       List<ServerName> localServers = new ArrayList<>();
       if (oldServerName != null) {
         localServers = serversByHostname.get(oldServerName.getHostnameLowerCase());
@@ -1470,7 +1506,7 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
 
     // If servers from prior assignment aren't present, then lets do randomAssignment on regions.
     if (randomAssignRegions.size() > 0) {
-      Cluster cluster = createCluster(servers, regions.keySet());
+      Cluster cluster = createCluster(servers, regions.keySet(), hasRegionReplica);
       for (Map.Entry<ServerName, List<RegionInfo>> entry : assignments.entrySet()) {
         ServerName sn = entry.getKey();
         for (RegionInfo region : entry.getValue()) {
@@ -1480,7 +1516,6 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
       for (RegionInfo region : randomAssignRegions) {
         ServerName target = randomAssignment(cluster, region, servers);
         assignments.get(target).add(region);
-        cluster.doAssignRegion(region, target);
         numRandomAssignments++;
       }
     }
@@ -1523,6 +1558,13 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
   }
 
   /**
+  * Updates the balancer status tag reported to JMX
+  */
+  public void updateBalancerStatus(boolean status) {
+    metricsBalancer.balancerStatus(status);
+  }
+
+  /**
    * Used to assign a single region to a random server.
    */
   private ServerName randomAssignment(Cluster cluster, RegionInfo regionInfo,
@@ -1531,12 +1573,29 @@ public abstract class BaseLoadBalancer implements LoadBalancer {
     ServerName sn = null;
     final int maxIterations = numServers * 4;
     int iterations = 0;
-
+    List<ServerName> usedSNs = new ArrayList<>(servers.size());
     do {
       int i = RANDOM.nextInt(numServers);
       sn = servers.get(i);
+      if (!usedSNs.contains(sn)) {
+        usedSNs.add(sn);
+      }
     } while (cluster.wouldLowerAvailability(regionInfo, sn)
         && iterations++ < maxIterations);
+    if (iterations >= maxIterations) {
+      // We have reached the max. Means the servers that we collected is still lowering the
+      // availability
+      for (ServerName unusedServer : servers) {
+        if (!usedSNs.contains(unusedServer)) {
+          // check if any other unused server is there for us to use.
+          // If so use it. Else we have not other go but to go with one of them
+          if (!cluster.wouldLowerAvailability(regionInfo, unusedServer)) {
+            sn = unusedServer;
+            break;
+          }
+        }
+      }
+    }
     cluster.doAssignRegion(regionInfo, sn);
     return sn;
   }

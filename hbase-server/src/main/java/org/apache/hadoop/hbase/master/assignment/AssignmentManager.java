@@ -37,7 +37,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseIOException;
 import org.apache.hadoop.hbase.HConstants;
 import org.apache.hadoop.hbase.PleaseHoldException;
-import org.apache.hadoop.hbase.RegionException;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.YouAreDeadException;
@@ -53,7 +52,6 @@ import org.apache.hadoop.hbase.master.AssignmentListener;
 import org.apache.hadoop.hbase.master.LoadBalancer;
 import org.apache.hadoop.hbase.master.MasterServices;
 import org.apache.hadoop.hbase.master.MetricsAssignmentManager;
-import org.apache.hadoop.hbase.master.NoSuchProcedureException;
 import org.apache.hadoop.hbase.master.RegionPlan;
 import org.apache.hadoop.hbase.master.RegionState;
 import org.apache.hadoop.hbase.master.RegionState.State;
@@ -561,41 +559,15 @@ public class AssignmentManager implements ServerListener {
     return ProcedureSyncWait.submitProcedure(master.getMasterProcedureExecutor(), proc);
   }
 
-  @VisibleForTesting
-  public boolean waitForAssignment(final RegionInfo regionInfo) throws IOException {
-    return waitForAssignment(regionInfo, Long.MAX_VALUE);
-  }
-
-  @VisibleForTesting
-  // TODO: Remove this?
-  public boolean waitForAssignment(final RegionInfo regionInfo, final long timeout)
-  throws IOException {
-    RegionStateNode node = null;
-    // This method can be called before the regionInfo has made it into the regionStateMap
-    // so wait around here a while.
-    long startTime = System.currentTimeMillis();
-    // Something badly wrong if takes ten seconds to register a region.
-    long endTime = startTime + 10000;
-    while ((node = regionStates.getRegionStateNode(regionInfo)) == null && isRunning() &&
-        System.currentTimeMillis() < endTime) {
-      // Presume it not yet added but will be added soon. Let it spew a lot so we can tell if
-      // we are waiting here alot.
-      LOG.debug("Waiting on " + regionInfo + " to be added to regionStateMap");
-      Threads.sleep(10);
-    }
-    if (node == null) {
-      if (!isRunning()) return false;
-      throw new RegionException(regionInfo.getRegionNameAsString() + " never registered with Assigment.");
-    }
-
-    RegionTransitionProcedure proc = node.getProcedure();
-    if (proc == null) {
-      throw new NoSuchProcedureException(node.toString());
-    }
-
-    ProcedureSyncWait.waitForProcedureToCompleteIOE(
-      master.getMasterProcedureExecutor(), proc, timeout);
-    return true;
+  /**
+   * Create round-robin assigns. Use on table creation to distribute out regions across cluster.
+   * @return AssignProcedures made out of the passed in <code>hris</code> and a call to the balancer
+   *         to populate the assigns with targets chosen using round-robin (default balancer
+   *         scheme). If at assign-time, the target chosen is no longer up, thats fine, the
+   *         AssignProcedure will ask the balancer for a new target, and so on.
+   */
+  public AssignProcedure[] createRoundRobinAssignProcedures(List<RegionInfo> hris) {
+    return createRoundRobinAssignProcedures(hris, null);
   }
 
   // ============================================================================================
@@ -609,15 +581,21 @@ public class AssignmentManager implements ServerListener {
    * balancer scheme). If at assign-time, the target chosen is no longer up, thats fine,
    * the AssignProcedure will ask the balancer for a new target, and so on.
    */
-  public AssignProcedure[] createRoundRobinAssignProcedures(final List<RegionInfo> hris) {
+  public AssignProcedure[] createRoundRobinAssignProcedures(final List<RegionInfo> hris,
+      List<ServerName> serversToExclude) {
     if (hris.isEmpty()) {
       return null;
+    }
+    if (serversToExclude != null
+        && this.master.getServerManager().getOnlineServersList().size() == 1) {
+      LOG.debug("Only one region server found and hence going ahead with the assignment");
+      serversToExclude = null;
     }
     try {
       // Ask the balancer to assign our regions. Pass the regions en masse. The balancer can do
       // a better job if it has all the assignments in the one lump.
       Map<ServerName, List<RegionInfo>> assignments = getBalancer().roundRobinAssignment(hris,
-          this.master.getServerManager().createDestinationServersList(null));
+          this.master.getServerManager().createDestinationServersList(serversToExclude));
       // Return mid-method!
       return createAssignProcedures(assignments, hris.size());
     } catch (HBaseIOException hioe) {
@@ -699,21 +677,37 @@ public class AssignmentManager implements ServerListener {
    * Called by things like DisableTableProcedure to get a list of UnassignProcedure
    * to unassign the regions of the table.
    */
-  public UnassignProcedure[] createUnassignProcedures(final TableName tableName) {
-    return createUnassignProcedures(regionStates.getTableRegionStateNodes(tableName));
+  public AssignProcedure createAssignProcedure(final RegionInfo regionInfo) {
+    return createAssignProcedure(regionInfo, null, false);
   }
 
-  public AssignProcedure createAssignProcedure(final RegionInfo regionInfo) {
-    AssignProcedure proc = new AssignProcedure(regionInfo);
-    proc.setOwner(getProcedureEnvironment().getRequestUser().getShortName());
-    return proc;
+  public AssignProcedure createAssignProcedure(final RegionInfo regionInfo, boolean override) {
+    return createAssignProcedure(regionInfo, null, override);
   }
 
   public AssignProcedure createAssignProcedure(final RegionInfo regionInfo,
-      final ServerName targetServer) {
-    AssignProcedure proc = new AssignProcedure(regionInfo, targetServer);
+      ServerName targetServer) {
+    return createAssignProcedure(regionInfo, targetServer, false);
+  }
+
+  public AssignProcedure createAssignProcedure(final RegionInfo regionInfo,
+      final ServerName targetServer, boolean override) {
+    AssignProcedure proc = new AssignProcedure(regionInfo, targetServer, override);
     proc.setOwner(getProcedureEnvironment().getRequestUser().getShortName());
     return proc;
+  }
+
+  public UnassignProcedure createUnassignProcedure(final RegionInfo regionInfo) {
+    return createUnassignProcedure(regionInfo, null, false);
+  }
+
+  public UnassignProcedure createUnassignProcedure(final RegionInfo regionInfo,
+      boolean override) {
+    return createUnassignProcedure(regionInfo, null, override);
+  }
+
+  public UnassignProcedure[] createUnassignProcedures(final TableName tableName) {
+    return createUnassignProcedures(regionStates.getTableRegionStateNodes(tableName));
   }
 
   UnassignProcedure createUnassignProcedure(final RegionInfo regionInfo,
@@ -1208,8 +1202,9 @@ public class AssignmentManager implements ServerListener {
     long startTime = System.nanoTime();
     LOG.debug("Joining cluster...");
 
-    // Scan hbase:meta to build list of existing regions, servers, and assignment
-    // hbase:meta is online when we get to here and TableStateManager has been started.
+    // Scan hbase:meta to build list of existing regions, servers, and assignment.
+    // hbase:meta is online now or will be. Inside loadMeta, we keep trying. Can't make progress
+    // w/o  meta.
     loadMeta();
 
     while (master.getServerManager().countOfRegionServers() < 1) {
@@ -1900,5 +1895,10 @@ public class AssignmentManager implements ServerListener {
       rtp.remoteCallFailed(master.getMasterProcedureExecutor().getEnvironment(), serverName,
           new ServerCrashException(rtp.getProcId(), serverName));
     }
+  }
+
+  @VisibleForTesting
+  MasterServices getMaster() {
+    return master;
   }
 }

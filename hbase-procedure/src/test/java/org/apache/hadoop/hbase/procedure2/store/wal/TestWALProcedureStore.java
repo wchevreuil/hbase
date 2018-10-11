@@ -423,11 +423,11 @@ public class TestWALProcedureStore {
       final Procedure[] procs, final int[] updatedProcs, final int[] nonUpdatedProcs) {
     for (int index : updatedProcs) {
       long procId = procs[index].getProcId();
-      assertTrue("Procedure id : " + procId, tracker.isUpdated(procId));
+      assertTrue("Procedure id : " + procId, tracker.isModified(procId));
     }
     for (int index : nonUpdatedProcs) {
       long procId = procs[index].getProcId();
-      assertFalse("Procedure id : " + procId, tracker.isUpdated(procId));
+      assertFalse("Procedure id : " + procId, tracker.isModified(procId));
     }
   }
 
@@ -896,6 +896,22 @@ public class TestWALProcedureStore {
     }
     procStore.removeInactiveLogsForTesting();
     assertEquals("WALs=" + procStore.getActiveLogs(), 1, procStore.getActiveLogs().size());
+  }
+
+  @Test
+  public void testWALDirAndWALArchiveDir() throws IOException {
+    Configuration conf = htu.getConfiguration();
+    procStore = createWALProcedureStore(conf);
+    assertEquals(procStore.getFileSystem(), procStore.getWalArchiveDir().getFileSystem(conf));
+  }
+
+  private WALProcedureStore createWALProcedureStore(Configuration conf) throws IOException {
+    return new WALProcedureStore(conf, new WALProcedureStore.LeaseRecovery() {
+      @Override
+      public void recoverFileLease(FileSystem fs, Path path) throws IOException {
+        // no-op
+      }
+    });
   }
 
   private LoadCounter restartAndAssert(long maxProcId, long runnableCount,

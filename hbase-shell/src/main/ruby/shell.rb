@@ -152,6 +152,7 @@ module Shell
       puts 'HBase Shell'
       puts 'Use "help" to get list of supported commands.'
       puts 'Use "exit" to quit this interactive shell.'
+      puts 'For Reference, please visit: http://hbase.apache.org/2.0/book.html#shell'
       print 'Version '
       command('version')
       puts
@@ -448,7 +449,6 @@ Shell.load_command_group(
   'procedures',
   full_name: 'PROCEDURES & LOCKS MANAGEMENT',
   commands: %w[
-    abort_procedure
     list_procedures
     list_locks
   ]

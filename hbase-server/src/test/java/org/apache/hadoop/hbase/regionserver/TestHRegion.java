@@ -113,6 +113,7 @@ import org.apache.hadoop.hbase.client.RowMutations;
 import org.apache.hadoop.hbase.client.Scan;
 import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.client.TableDescriptor;
+import org.apache.hadoop.hbase.coprocessor.CoprocessorHost;
 import org.apache.hadoop.hbase.exceptions.FailedSanityCheckException;
 import org.apache.hadoop.hbase.filter.BigDecimalComparator;
 import org.apache.hadoop.hbase.filter.BinaryComparator;
@@ -139,6 +140,7 @@ import org.apache.hadoop.hbase.regionserver.compactions.CompactionRequestImpl;
 import org.apache.hadoop.hbase.regionserver.wal.FSHLog;
 import org.apache.hadoop.hbase.regionserver.wal.MetricsWALSource;
 import org.apache.hadoop.hbase.regionserver.wal.WALUtil;
+import org.apache.hadoop.hbase.replication.regionserver.ReplicationObserver;
 import org.apache.hadoop.hbase.security.User;
 import org.apache.hadoop.hbase.test.MetricsAssertHelper;
 import org.apache.hadoop.hbase.testclassification.LargeTests;
@@ -425,6 +427,36 @@ public class TestHRegion {
   }
 
   /**
+   * A test case of HBASE-21041
+   * @throws Exception Exception
+   */
+  @Test
+  public void testFlushAndMemstoreSizeCounting() throws Exception {
+    byte[] family = Bytes.toBytes("family");
+    this.region = initHRegion(tableName, method, CONF, family);
+    final WALFactory wals = new WALFactory(CONF, method);
+    try {
+      for (byte[] row : HBaseTestingUtility.ROWS) {
+        Put put = new Put(row);
+        put.addColumn(family, family, row);
+        region.put(put);
+      }
+      region.flush(true);
+      // After flush, data size should be zero
+      assertEquals(0, region.getMemStoreDataSize());
+      // After flush, a new active mutable segment is created, so the heap size
+      // should equal to MutableSegment.DEEP_OVERHEAD
+      assertEquals(MutableSegment.DEEP_OVERHEAD, region.getMemStoreHeapSize());
+      // After flush, offheap should be zero
+      assertEquals(0, region.getMemStoreOffHeapSize());
+    } finally {
+      HBaseTestingUtility.closeRegionAndWAL(this.region);
+      this.region = null;
+      wals.close();
+    }
+  }
+
+  /**
    * Test we do not lose data if we fail a flush and then close.
    * Part of HBase-10466.  Tests the following from the issue description:
    * "Bug 1: Wrong calculation of HRegion.memstoreSize: When a flush fails, data to be flushed is
@@ -671,7 +703,7 @@ public class TestHRegion {
       for (HStore store : region.getStores()) {
         maxSeqIdInStores.put(Bytes.toBytes(store.getColumnFamilyName()), minSeqId - 1);
       }
-      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status);
+      long seqId = region.replayRecoveredEditsIfAny(maxSeqIdInStores, null, status);
       assertEquals(maxSeqId, seqId);
       region.getMVCC().advanceTo(seqId);
       Get get = new Get(row);
@@ -723,7 +755,7 @@ public class TestHRegion {
       for (HStore store : region.getStores()) {
         maxSeqIdInStores.put(Bytes.toBytes(store.getColumnFamilyName()), recoverSeqId - 1);
       }
-      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status);
+      long seqId = region.replayRecoveredEditsIfAny(maxSeqIdInStores, null, status);
       assertEquals(maxSeqId, seqId);
       region.getMVCC().advanceTo(seqId);
       Get get = new Get(row);
@@ -768,7 +800,7 @@ public class TestHRegion {
       for (HStore store : region.getStores()) {
         maxSeqIdInStores.put(Bytes.toBytes(store.getColumnFamilyName()), minSeqId);
       }
-      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, null);
+      long seqId = region.replayRecoveredEditsIfAny(maxSeqIdInStores, null, null);
       assertEquals(minSeqId, seqId);
     } finally {
       HBaseTestingUtility.closeRegionAndWAL(this.region);
@@ -826,7 +858,7 @@ public class TestHRegion {
       for (HStore store : region.getStores()) {
         maxSeqIdInStores.put(Bytes.toBytes(store.getColumnFamilyName()), recoverSeqId - 1);
       }
-      long seqId = region.replayRecoveredEditsIfAny(regiondir, maxSeqIdInStores, null, status);
+      long seqId = region.replayRecoveredEditsIfAny(maxSeqIdInStores, null, status);
       assertEquals(maxSeqId, seqId);
 
       // assert that the files are flushed
@@ -6492,6 +6524,29 @@ public class TestHRegion {
       HBaseTestingUtility.closeRegionAndWAL(this.region);
       this.region = null;
     }
+  }
+
+  @Test
+  public void testBulkLoadReplicationEnabled() throws IOException {
+    TEST_UTIL.getConfiguration().setBoolean(HConstants.REPLICATION_BULKLOAD_ENABLE_KEY, true);
+    final ServerName serverName = ServerName.valueOf(name.getMethodName(), 100, 42);
+    final RegionServerServices rss = spy(TEST_UTIL.createMockRegionServerService(serverName));
+
+    HTableDescriptor htd = new HTableDescriptor(TableName.valueOf(name.getMethodName()));
+    htd.addFamily(new HColumnDescriptor(fam1));
+    HRegionInfo hri = new HRegionInfo(htd.getTableName(),
+        HConstants.EMPTY_BYTE_ARRAY, HConstants.EMPTY_BYTE_ARRAY);
+    region = HRegion.openHRegion(hri, htd, rss.getWAL(hri), TEST_UTIL.getConfiguration(),
+        rss, null);
+
+    assertTrue(region.conf.getBoolean(HConstants.REPLICATION_BULKLOAD_ENABLE_KEY, false));
+    String plugins = region.conf.get(CoprocessorHost.REGION_COPROCESSOR_CONF_KEY, "");
+    String replicationCoprocessorClass = ReplicationObserver.class.getCanonicalName();
+    assertTrue(plugins.contains(replicationCoprocessorClass));
+    assertTrue(region.getCoprocessorHost().
+        getCoprocessors().contains(ReplicationObserver.class.getSimpleName()));
+
+    region.close();
   }
 
   /**

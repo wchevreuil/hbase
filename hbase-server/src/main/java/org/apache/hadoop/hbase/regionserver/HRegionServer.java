@@ -129,9 +129,7 @@ import org.apache.hadoop.hbase.regionserver.handler.RSProcedureHandler;
 import org.apache.hadoop.hbase.regionserver.handler.RegionReplicaFlushHandler;
 import org.apache.hadoop.hbase.regionserver.throttle.FlushThroughputControllerFactory;
 import org.apache.hadoop.hbase.regionserver.throttle.ThroughputController;
-import org.apache.hadoop.hbase.replication.ReplicationUtils;
 import org.apache.hadoop.hbase.replication.regionserver.ReplicationLoad;
-import org.apache.hadoop.hbase.replication.regionserver.ReplicationObserver;
 import org.apache.hadoop.hbase.replication.regionserver.ReplicationSourceInterface;
 import org.apache.hadoop.hbase.replication.regionserver.ReplicationStatus;
 import org.apache.hadoop.hbase.security.Superusers;
@@ -149,6 +147,8 @@ import org.apache.hadoop.hbase.util.HasThread;
 import org.apache.hadoop.hbase.util.JvmPauseMonitor;
 import org.apache.hadoop.hbase.util.NettyEventLoopGroupConfig;
 import org.apache.hadoop.hbase.util.Pair;
+import org.apache.hadoop.hbase.util.RetryCounter;
+import org.apache.hadoop.hbase.util.RetryCounterFactory;
 import org.apache.hadoop.hbase.util.ServerRegionReplicaUtil;
 import org.apache.hadoop.hbase.util.Sleeper;
 import org.apache.hadoop.hbase.util.Threads;
@@ -542,7 +542,6 @@ public class HRegionServer extends HasThread implements
       checkCodecs(this.conf);
       this.userProvider = UserProvider.instantiate(conf);
       FSUtils.setupShortCircuitRead(this.conf);
-      decorateRegionServerConfiguration(this.conf);
 
       // Disable usage of meta replicas in the regionserver
       this.conf.setBoolean(HConstants.USE_META_REPLICAS, false);
@@ -714,8 +713,12 @@ public class HRegionServer extends HasThread implements
       "hbase.regionserver.kerberos.principal", host);
   }
 
-  protected void waitForMasterActive() {
-  }
+
+  /**
+   * Wait for an active Master.
+   * See override in Master superclass for how it is used.
+   */
+  protected void waitForMasterActive() {}
 
   protected String getProcessName() {
     return REGIONSERVER;
@@ -876,10 +879,6 @@ public class HRegionServer extends HasThread implements
       }
     }
 
-    // In case colocated master, wait here till it's active.
-    // So backup masters won't start as regionservers.
-    // This is to avoid showing backup masters as regionservers
-    // in master web UI, or assigning any region to them.
     waitForMasterActive();
     if (isStopped() || isAborted()) {
       return; // No need for further initialization
@@ -940,14 +939,18 @@ public class HRegionServer extends HasThread implements
         this.rsHost = new RegionServerCoprocessorHost(this, this.conf);
       }
 
-      // Try and register with the Master; tell it we are here.  Break if
-      // server is stopped or the clusterup flag is down or hdfs went wacky.
-      // Once registered successfully, go ahead and start up all Services.
+      // Try and register with the Master; tell it we are here.  Break if server is stopped or the
+      // clusterup flag is down or hdfs went wacky. Once registered successfully, go ahead and start
+      // up all Services. Use RetryCounter to get backoff in case Master is struggling to come up.
+      RetryCounterFactory rcf = new RetryCounterFactory(Integer.MAX_VALUE,
+          this.sleeper.getPeriod(), 1000 * 60 * 5);
+      RetryCounter rc = rcf.create();
       while (keepLooping()) {
         RegionServerStartupResponse w = reportForDuty();
         if (w == null) {
-          LOG.warn("reportForDuty failed; sleeping and then retrying.");
-          this.sleeper.sleep();
+          long sleepTime = rc.getBackoffTimeAndIncrementAttempts();
+          LOG.warn("reportForDuty failed; sleeping {} ms and then retrying.", sleepTime);
+          this.sleeper.sleep(sleepTime);
         } else {
           handleReportForDutyResponse(w);
           break;
@@ -1734,11 +1737,16 @@ public class HRegionServer extends HasThread implements
 
   static class PeriodicMemStoreFlusher extends ScheduledChore {
     final HRegionServer server;
-    final static int RANGE_OF_DELAY = 5 * 60 * 1000; // 5 min in milliseconds
+    final static int RANGE_OF_DELAY = 5 * 60; // 5 min in seconds
     final static int MIN_DELAY_TIME = 0; // millisec
+
+    final int rangeOfDelay;
     public PeriodicMemStoreFlusher(int cacheFlushInterval, final HRegionServer server) {
       super("MemstoreFlusherChore", server, cacheFlushInterval);
       this.server = server;
+
+      this.rangeOfDelay = this.server.conf.getInt("hbase.regionserver.periodicmemstoreflusher.rangeofdelayseconds",
+              RANGE_OF_DELAY)*1000;
     }
 
     @Override
@@ -1749,15 +1757,15 @@ public class HRegionServer extends HasThread implements
         if (r.shouldFlush(whyFlush)) {
           FlushRequester requester = server.getFlushRequester();
           if (requester != null) {
-            long randomDelay = (long) RandomUtils.nextInt(0, RANGE_OF_DELAY) + MIN_DELAY_TIME;
-            LOG.info(getName() + " requesting flush of " +
-              r.getRegionInfo().getRegionNameAsString() + " because " +
-              whyFlush.toString() +
-              " after random delay " + randomDelay + "ms");
+            long randomDelay = (long) RandomUtils.nextInt(0, rangeOfDelay) + MIN_DELAY_TIME;
             //Throttle the flushes by putting a delay. If we don't throttle, and there
             //is a balanced write-load on the regions in a table, we might end up
             //overwhelming the filesystem with too many flushes at once.
-            requester.requestDelayedFlush(r, randomDelay, false);
+            if (requester.requestDelayedFlush(r, randomDelay, false)) {
+              LOG.info("{} requesting flush of {} because {} after random delay {} ms",
+                  getName(), r.getRegionInfo().getRegionNameAsString(),  whyFlush.toString(),
+                  randomDelay);
+            }
           }
         }
       }
@@ -3215,7 +3223,6 @@ public class HRegionServer extends HasThread implements
   }
 
    /**
-   * @param regionName
    * @return HRegion for the passed binary <code>regionName</code> or null if
    *         named region is not member of the online regions.
    */
@@ -3723,22 +3730,6 @@ public class HRegionServer extends HasThread implements
         rssStub = null;
       }
       throw ProtobufUtil.getRemoteException(se);
-    }
-  }
-
-  /**
-   * This method modifies the region server's configuration in order to inject replication-related
-   * features
-   * @param conf region server configurations
-   */
-  static void decorateRegionServerConfiguration(Configuration conf) {
-    if (ReplicationUtils.isReplicationForBulkLoadDataEnabled(conf)) {
-      String plugins = conf.get(CoprocessorHost.REGIONSERVER_COPROCESSOR_CONF_KEY, "");
-      String rsCoprocessorClass = ReplicationObserver.class.getCanonicalName();
-      if (!plugins.contains(rsCoprocessorClass)) {
-        conf.set(CoprocessorHost.REGIONSERVER_COPROCESSOR_CONF_KEY,
-          plugins + "," + rsCoprocessorClass);
-      }
     }
   }
 

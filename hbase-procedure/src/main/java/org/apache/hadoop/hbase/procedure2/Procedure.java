@@ -145,6 +145,65 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
   private boolean lockedWhenLoading = false;
 
   /**
+   * Used for override complete of the procedure without actually doing any logic in the procedure.
+   * If bypass is set to true, when executing it will return null when
+   * {@link #doExecute(Object)} is called to finish the procedure and release any locks
+   * it may currently hold. The bypass does cleanup around the Procedure as far as the
+   * Procedure framework is concerned. It does not clean any internal state that the
+   * Procedure's themselves may have set. That is for the Procedures to do themselves
+   * when bypass is called. They should override bypass and do their cleanup in the
+   * overridden bypass method (be sure to call the parent bypass to ensure proper
+   * processing).
+   * <p></p>Bypassing a procedure is not like aborting. Aborting a procedure will trigger
+   * a rollback. And since the {@link #abort(Object)} method is overrideable
+   * Some procedures may have chosen to ignore the aborting.
+   */
+  private volatile boolean bypass = false;
+
+  /**
+   * Indicate whether we need to persist the procedure to ProcedureStore after execution. Default to
+   * true, and the implementation can all {@link #skipPersistence()} to let the framework skip the
+   * persistence of the procedure.
+   * <p/>
+   * This is useful when the procedure is in error and you want to retry later. The retry interval
+   * and the number of retries are usually not critical so skip the persistence can save some
+   * resources, and also speed up the restart processing.
+   * <p/>
+   * Notice that this value will be reset to true every time before execution. And when rolling back
+   * we do not test this value.
+   */
+  private boolean persist = true;
+
+  public boolean isBypass() {
+    return bypass;
+  }
+
+  /**
+   * Set the bypass to true.
+   * Only called in {@link ProcedureExecutor#bypassProcedure(long, long, boolean)} for now.
+   * DO NOT use this method alone, since we can't just bypass one single procedure. We need to
+   * bypass its ancestor too. If your Procedure has set state, it needs to undo it in here.
+   * @param env Current environment. May be null because of context; e.g. pretty-printing
+   *            procedure WALs where there is no 'environment' (and where Procedures that require
+   *            an 'environment' won't be run.
+   */
+  protected void bypass(TEnvironment env) {
+    this.bypass = true;
+  }
+
+  boolean needPersistence() {
+    return persist;
+  }
+
+  void resetPersistence() {
+    persist = true;
+  }
+
+  protected final void skipPersistence() {
+    persist = false;
+  }
+
+  /**
    * The main code of the procedure. It must be idempotent since execute()
    * may be called multiple times in case of machine failure in the middle
    * of the execution.
@@ -421,7 +480,14 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
     sb.append(", state="); // pState for Procedure State as opposed to any other kind.
     toStringState(sb);
 
-    sb.append(", hasLock=").append(locked);
+    // Only print out locked if actually locked. Most of the time it is not.
+    if (this.locked) {
+      sb.append(", locked=").append(locked);
+    }
+
+    if (bypass) {
+      sb.append(", bypass=").append(bypass);
+    }
 
     if (hasException()) {
       sb.append(", exception=" + getException());
@@ -647,7 +713,7 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
   /**
    * Will only be called when loading procedures from procedure store, where we need to record
    * whether the procedure has already held a lock. Later we will call
-   * {@link #doAcquireLock(Object)} to actually acquire the lock.
+   * {@link #doAcquireLock(Object, ProcedureStore)} to actually acquire the lock.
    */
   final void lockedWhenLoading() {
     this.lockedWhenLoading = true;
@@ -736,14 +802,21 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
 
   /**
    * Called by the ProcedureExecutor when the timeout set by setTimeout() is expired.
+   * <p/>
+   * Another usage for this method is to implement retrying. A procedure can set the state to
+   * {@code WAITING_TIMEOUT} by calling {@code setState} method, and throw a
+   * {@link ProcedureSuspendedException} to halt the execution of the procedure, and do not forget a
+   * call {@link #setTimeout(int)} method to set the timeout. And you should also override this
+   * method to wake up the procedure, and also return false to tell the ProcedureExecutor that the
+   * timeout event has been handled.
    * @return true to let the framework handle the timeout as abort, false in case the procedure
    *         handled the timeout itself.
    */
   protected synchronized boolean setTimeoutFailure(TEnvironment env) {
     if (state == ProcedureState.WAITING_TIMEOUT) {
       long timeDiff = EnvironmentEdgeManager.currentTime() - lastUpdate;
-      setFailure("ProcedureExecutor", new TimeoutIOException(
-        "Operation timed out after " + StringUtils.humanTimeDiff(timeDiff)));
+      setFailure("ProcedureExecutor",
+        new TimeoutIOException("Operation timed out after " + StringUtils.humanTimeDiff(timeDiff)));
       return true;
     }
     return false;
@@ -810,6 +883,9 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
     return childrenLatch > 0;
   }
 
+  /**
+   * @return Count of children outstanding (Badly named).
+   */
   protected synchronized int getChildrenLatch() {
     return childrenLatch;
   }
@@ -870,6 +946,10 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
       throws ProcedureYieldException, ProcedureSuspendedException, InterruptedException {
     try {
       updateTimestamp();
+      if (bypass) {
+        LOG.info("{} bypassed, returning null to finish it", this);
+        return null;
+      }
       return execute(env);
     } finally {
       updateTimestamp();
@@ -883,6 +963,10 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
       throws IOException, InterruptedException {
     try {
       updateTimestamp();
+      if (bypass) {
+        LOG.info("{} bypassed, skipping rollback", this);
+        return;
+      }
       rollback(env);
     } finally {
       updateTimestamp();
@@ -892,6 +976,16 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
   final void restoreLock(TEnvironment env) {
     if (!lockedWhenLoading) {
       LOG.debug("{} didn't hold the lock before restarting, skip acquiring lock.", this);
+      return;
+    }
+
+    if (isFinished()) {
+      LOG.debug("{} is already finished, skip acquiring lock.", this);
+      return;
+    }
+
+    if (isBypass()) {
+      LOG.debug("{} is already bypassed, skip acquiring lock.", this);
       return;
     }
 

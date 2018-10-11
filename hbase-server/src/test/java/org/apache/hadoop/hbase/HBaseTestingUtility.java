@@ -64,6 +64,7 @@ import org.apache.hadoop.hbase.Waiter.ExplainingPredicate;
 import org.apache.hadoop.hbase.Waiter.Predicate;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.BufferedMutator;
+import org.apache.hadoop.hbase.client.ClusterConnection;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptor;
 import org.apache.hadoop.hbase.client.ColumnFamilyDescriptorBuilder;
 import org.apache.hadoop.hbase.client.Connection;
@@ -73,6 +74,7 @@ import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Durability;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.HBaseAdmin;
+import org.apache.hadoop.hbase.client.Hbck;
 import org.apache.hadoop.hbase.client.ImmutableHRegionInfo;
 import org.apache.hadoop.hbase.client.ImmutableHTableDescriptor;
 import org.apache.hadoop.hbase.client.Put;
@@ -99,6 +101,7 @@ import org.apache.hadoop.hbase.master.HMaster;
 import org.apache.hadoop.hbase.master.RegionState;
 import org.apache.hadoop.hbase.master.ServerManager;
 import org.apache.hadoop.hbase.master.assignment.AssignmentManager;
+import org.apache.hadoop.hbase.master.assignment.AssignmentTestingUtil;
 import org.apache.hadoop.hbase.master.assignment.RegionStateStore;
 import org.apache.hadoop.hbase.master.assignment.RegionStates;
 import org.apache.hadoop.hbase.regionserver.BloomType;
@@ -1342,7 +1345,22 @@ public class HBaseTestingUtility extends HBaseZKTestingUtility {
    */
   public Table createTable(TableName tableName, byte[][] families, byte[][] splitKeys)
       throws IOException {
-    return createTable(tableName, families, splitKeys, new Configuration(getConfiguration()));
+    return createTable(tableName, families, splitKeys, 1, new Configuration(getConfiguration()));
+  }
+
+  /**
+   * Create a table.
+   * @param tableName the table name
+   * @param families the families
+   * @param splitKeys the splitkeys
+   * @param replicaCount the region replica count
+   * @return A Table instance for the created table.
+   * @throws IOException throws IOException
+   */
+  public Table createTable(TableName tableName, byte[][] families, byte[][] splitKeys,
+      int replicaCount) throws IOException {
+    return createTable(tableName, families, splitKeys, replicaCount,
+      new Configuration(getConfiguration()));
   }
 
   public Table createTable(TableName tableName, byte[][] families,
@@ -1433,16 +1451,19 @@ public class HBaseTestingUtility extends HBaseZKTestingUtility {
 
   /**
    * Create a table.
-   * @param tableName
-   * @param families
-   * @param splitKeys
+   * @param tableName the table name
+   * @param families the families
+   * @param splitKeys the split keys
+   * @param replicaCount the replica count
    * @param c Configuration to use
    * @return A Table instance for the created table.
    * @throws IOException
    */
   public Table createTable(TableName tableName, byte[][] families, byte[][] splitKeys,
-      final Configuration c) throws IOException {
-    return createTable(new HTableDescriptor(tableName), families, splitKeys, c);
+      int replicaCount, final Configuration c) throws IOException {
+    HTableDescriptor htd = new HTableDescriptor(tableName);
+    htd.setRegionReplication(replicaCount);
+    return createTable(htd, families, splitKeys, c);
   }
 
   /**
@@ -2804,7 +2825,12 @@ public class HBaseTestingUtility extends HBaseZKTestingUtility {
 
   private HBaseAdmin hbaseAdmin = null;
 
-
+  /**
+   * Returns an {@link Hbck} instance. Needs be closed when done.
+   */
+  public Hbck getHbck() throws IOException {
+    return ((ClusterConnection) getConnection()).getHbck();
+  }
 
   /**
    * Unassign the named region.
@@ -3210,17 +3236,15 @@ public class HBaseTestingUtility extends HBaseZKTestingUtility {
   }
 
   /**
-   * Uses directly the assignment manager to assign the region.
-   * and waits until the specified region has completed assignment.
-   * @throws IOException
-   * @throw InterruptedException
+   * Uses directly the assignment manager to assign the region. and waits until the specified region
+   * has completed assignment.
    * @return true if the region is assigned false otherwise.
    */
   public boolean assignRegion(final RegionInfo regionInfo)
       throws IOException, InterruptedException {
     final AssignmentManager am = getHBaseCluster().getMaster().getAssignmentManager();
     am.assign(regionInfo);
-    return am.waitForAssignment(regionInfo);
+    return AssignmentTestingUtil.waitForAssignment(am, regionInfo);
   }
 
   /**

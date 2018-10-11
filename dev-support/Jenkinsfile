@@ -47,11 +47,7 @@ pipeline {
     ARCHIVE_PATTERN_LIST = 'TEST-*.xml,org.apache.h*.txt,*.dumpstream,*.dump'
     // These tests currently have known failures. Once they burn down to 0, remove from here so that new problems will cause a failure.
     TESTS_FILTER = 'cc,checkstyle,javac,javadoc,pylint,shellcheck,whitespace,perlcritic,ruby-lint,rubocop,mvnsite'
-    // Flaky urls for different branches. Replace '-' and '.' in branch name by '_' because those
-    // characters are not allowed in bash variable name.
-    // Not excluding flakies from the nightly build for now.
-    // EXCLUDE_TESTS_URL_master = 'https://builds.apache.org/job/HBase-Find-Flaky-Tests/lastSuccessfulBuild/artifact/excludes/'
-    // EXCLUDE_TESTS_URL_branch_2 = 'https://builds.apache.org/job/HBase-Find-Flaky-Tests-branch2.0/lastSuccessfulBuild/artifact/excludes/'
+    EXCLUDE_TESTS_URL = "${JENKINS_URL}/job/HBase-Find-Flaky-Tests/job/${BRANCH_NAME}/lastSuccessfulBuild/artifact/excludes"
   }
   parameters {
     booleanParam(name: 'USE_YETUS_PRERELEASE', defaultValue: false, description: '''Check to use the current HEAD of apache/yetus rather than our configured release.
@@ -84,7 +80,8 @@ pipeline {
               if [[ true !=  "${USE_YETUS_PRERELEASE}" ]]; then
                 YETUS_DIR="${WORKSPACE}/yetus-${YETUS_RELEASE}"
                 echo "Checking for Yetus ${YETUS_RELEASE} in '${YETUS_DIR}'"
-                if [ ! -d "${YETUS_DIR}" ]; then
+                if ! "${YETUS_DIR}/bin/test-patch" --version >/dev/null 2>&1 ; then
+                  rm -rf "${YETUS_DIR}"
                   "${WORKSPACE}/component/dev-support/jenkins-scripts/cache-apache-project-artifact.sh" \
                       --working-dir "${WORKSPACE}/downloads-yetus" \
                       --keys 'https://www.apache.org/dist/yetus/KEYS' \
