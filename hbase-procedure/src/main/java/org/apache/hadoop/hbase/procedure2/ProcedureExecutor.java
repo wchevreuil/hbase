@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -85,6 +86,12 @@ public class ProcedureExecutor<TEnvironment> {
   public static final String WORKER_KEEP_ALIVE_TIME_CONF_KEY =
       "hbase.procedure.worker.keep.alive.time.msec";
   private static final long DEFAULT_WORKER_KEEP_ALIVE_TIME = TimeUnit.MINUTES.toMillis(1);
+
+  // Enable this flag if you want to upgrade to 2.2+, there are some incompatible changes on how we
+  // assign or unassign a region, so we need to make sure all these procedures have been finished
+  // before we start the master with new code. See HBASE-20881 and HBASE-21075 for more details.
+  public static final String UPGRADE_TO_2_2 = "hbase.procedure.upgrade-to-2-2";
+  private static final boolean DEFAULT_UPGRADE_TO_2_2 = false;
 
   /**
    * {@link #testing} is non-null when ProcedureExecutor is being tested. Tests will try to
@@ -363,9 +370,16 @@ public class ProcedureExecutor<TEnvironment> {
   // execution of the same procedure.
   private final IdLock procExecutionLock = new IdLock();
 
+  private final boolean upgradeTo2_2;
+
   public ProcedureExecutor(final Configuration conf, final TEnvironment environment,
       final ProcedureStore store) {
     this(conf, environment, store, new SimpleProcedureScheduler());
+  }
+
+  private boolean isRootFinished(Procedure<?> proc) {
+    Procedure<?> rootProc = procedures.get(proc.getRootProcId());
+    return rootProc == null || rootProc.isFinished();
   }
 
   private void forceUpdateProcedure(long procId) throws IOException {
@@ -376,7 +390,9 @@ public class ProcedureExecutor<TEnvironment> {
         LOG.debug("No pending procedure with id = {}, skip force updating.", procId);
         return;
       }
-      if (proc.isFinished()) {
+      // For a sub procedure which root parent has not been finished, we still need to retain the
+      // wal even if the procedure itself is finished.
+      if (proc.isFinished() && (!proc.hasParent() || isRootFinished(proc))) {
         LOG.debug("Procedure {} has already been finished, skip force updating.", proc);
         return;
       }
@@ -394,6 +410,7 @@ public class ProcedureExecutor<TEnvironment> {
     this.store = store;
     this.conf = conf;
     this.checkOwnerSet = conf.getBoolean(CHECK_OWNER_SET_CONF_KEY, DEFAULT_CHECK_OWNER_SET);
+    this.upgradeTo2_2 = conf.getBoolean(UPGRADE_TO_2_2, DEFAULT_UPGRADE_TO_2_2);
     refreshConfiguration(conf);
     store.registerListener(new ProcedureStoreListener() {
 
@@ -721,6 +738,25 @@ public class ProcedureExecutor<TEnvironment> {
     // Internal chores
     timeoutExecutor.add(new WorkerMonitor());
 
+    if (upgradeTo2_2) {
+      timeoutExecutor.add(new InlineChore() {
+
+        @Override
+        public void run() {
+          if (procedures.isEmpty()) {
+            LOG.info("UPGRADE OK: All existed procedures have been finished, quit...");
+            System.exit(0);
+          }
+        }
+
+        @Override
+        public int getTimeoutInterval() {
+          // check every 5 seconds to see if we can quit
+          return 5000;
+        }
+      });
+    }
+
     // Add completed cleaner chore
     addChore(new CompletedProcedureCleaner<>(conf, store, completed, nonceKeysToProcIdsMap));
   }
@@ -1047,6 +1083,7 @@ public class ProcedureExecutor<TEnvironment> {
 
   boolean bypassProcedure(long pid, long lockWait, boolean override, boolean recursive)
       throws IOException {
+    Preconditions.checkArgument(lockWait > 0, "lockWait should be positive");
     final Procedure<TEnvironment> procedure = getProcedure(pid);
     if (procedure == null) {
       LOG.debug("Procedure pid={} does not exist, skipping bypass", pid);
@@ -1202,10 +1239,9 @@ public class ProcedureExecutor<TEnvironment> {
     if (LOG.isDebugEnabled()) {
       LOG.debug("Stored " + Arrays.toString(procs));
     }
-
     // Add the procedure to the executor
-    for (int i = 0; i < procs.length; ++i) {
-      pushProcedure(procs[i]);
+    for (Procedure<TEnvironment> proc : procs) {
+      pushProcedure(proc);
     }
   }
 
@@ -1219,7 +1255,12 @@ public class ProcedureExecutor<TEnvironment> {
   }
 
   private long pushProcedure(Procedure<TEnvironment> proc) {
-    final long currentProcId = proc.getProcId();
+    long currentProcId = proc.getProcId();
+    // If we are going to upgrade to 2.2+, and this is not a sub procedure, do not push it to
+    // scheduler. After we finish all the ongoing procedures, the master will quit.
+    if (upgradeTo2_2 && !proc.hasParent()) {
+      return currentProcId;
+    }
 
     // Update metrics on start of a procedure
     proc.updateMetricsOnSubmit(getEnvironment());
@@ -1361,6 +1402,18 @@ public class ProcedureExecutor<TEnvironment> {
     // Procedure either does not exist or has already completed and got cleaned up.
     // At this time, we cannot check the owner of the procedure
     return false;
+  }
+
+
+  /**
+   * Should only be used when starting up, where the procedure workers have not been started.
+   * <p/>
+   * If the procedure works has been started, the return values maybe changed when you are
+   * processing it so usually this is not safe. Use {@link #getProcedures()} below for most cases as
+   * it will do a copy, and also include the finished procedures.
+   */
+  public Collection<Procedure<TEnvironment>> getActiveProceduresNoCopy() {
+    return procedures.values();
   }
 
   /**
