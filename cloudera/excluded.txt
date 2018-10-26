@@ -20,3 +20,4 @@
 **/TestReplicator.java
 **/TestServerCrashProcedureStuck.java
 **/TestMasterOperationsForRegionReplicas.java
+**/TestRegionInfoDisplay
