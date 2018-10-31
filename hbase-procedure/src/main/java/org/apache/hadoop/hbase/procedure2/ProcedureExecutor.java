@@ -507,8 +507,10 @@ public class ProcedureExecutor<TEnvironment> {
   private void loadProcedures(ProcedureIterator procIter, boolean abortOnCorruption)
       throws IOException {
     // 1. Build the rollback stack
-    int runnablesCount = 0;
+    int runnableCount = 0;
     int failedCount = 0;
+    int waitingCount = 0;
+    int waitingTimeoutCount = 0;
     while (procIter.hasNext()) {
       boolean finished = procIter.isNextFinished();
       Procedure<TEnvironment> proc = procIter.next();
@@ -527,11 +529,21 @@ public class ProcedureExecutor<TEnvironment> {
         // add the procedure to the map
         proc.beforeReplay(getEnvironment());
         procedures.put(proc.getProcId(), proc);
-
-        if (proc.getState() == ProcedureState.RUNNABLE) {
-          runnablesCount++;
-        } else if (proc.getState() == ProcedureState.FAILED) {
-          failedCount++;
+        switch (proc.getState()) {
+          case RUNNABLE:
+            runnableCount++;
+            break;
+          case FAILED:
+            failedCount++;
+            break;
+          case WAITING:
+            waitingCount++;
+            break;
+          case WAITING_TIMEOUT:
+            waitingTimeoutCount++;
+            break;
+          default:
+            break;
         }
       }
 
@@ -552,9 +564,10 @@ public class ProcedureExecutor<TEnvironment> {
     // have been polled out already, so when loading we can not add the procedure to scheduler first
     // and then call acquireLock, since the procedure is still in the queue, and since we will
     // remove the queue from runQueue, then no one can poll it out, then there is a dead lock
-    List<Procedure<TEnvironment>> runnableList = new ArrayList<>(runnablesCount);
+    List<Procedure<TEnvironment>> runnableList = new ArrayList<>(runnableCount);
     List<Procedure<TEnvironment>> failedList = new ArrayList<>(failedCount);
-    Set<Procedure<TEnvironment>> waitingSet = null;
+    List<Procedure<TEnvironment>> waitingList = new ArrayList<>(waitingCount);
+    List<Procedure<TEnvironment>> waitingTimeoutList = new ArrayList<>(waitingTimeoutCount);
     procIter.reset();
     while (procIter.hasNext()) {
       if (procIter.isNextFinished()) {
@@ -568,15 +581,11 @@ public class ProcedureExecutor<TEnvironment> {
       LOG.debug("Loading {}", proc);
 
       Long rootProcId = getRootProcedureId(proc);
-      if (rootProcId == null) {
-        // The 'proc' was ready to run but the root procedure was rolledback?
-        scheduler.addBack(proc);
-        continue;
-      }
+      // The orphan procedures will be passed to handleCorrupted, so add an assert here
+      assert rootProcId != null;
 
       if (proc.hasParent()) {
         Procedure<TEnvironment> parent = procedures.get(proc.getParentProcId());
-        // corrupted procedures are handled later at step 3
         if (parent != null && !proc.isFinished()) {
           parent.incChildrenLatch();
         }
@@ -591,26 +600,10 @@ public class ProcedureExecutor<TEnvironment> {
           runnableList.add(proc);
           break;
         case WAITING:
-          if (!proc.hasChildren()) {
-            // Normally, WAITING procedures should be waken by its children.
-            // But, there is a case that, all the children are successful and before
-            // they can wake up their parent procedure, the master was killed.
-            // So, during recovering the procedures from ProcedureWal, its children
-            // are not loaded because of their SUCCESS state.
-            // So we need to continue to run this WAITING procedure. But before
-            // executing, we need to set its state to RUNNABLE, otherwise, a exception
-            // will throw:
-            // Preconditions.checkArgument(procedure.getState() == ProcedureState.RUNNABLE,
-            // "NOT RUNNABLE! " + procedure.toString());
-            proc.setState(ProcedureState.RUNNABLE);
-            runnableList.add(proc);
-          }
+          waitingList.add(proc);
           break;
         case WAITING_TIMEOUT:
-          if (waitingSet == null) {
-            waitingSet = new HashSet<>();
-          }
-          waitingSet.add(proc);
+          waitingTimeoutList.add(proc);
           break;
         case FAILED:
           failedList.add(proc);
@@ -625,36 +618,31 @@ public class ProcedureExecutor<TEnvironment> {
       }
     }
 
-    // 3. Validate the stacks
-    int corruptedCount = 0;
-    Iterator<Map.Entry<Long, RootProcedureState<TEnvironment>>> itStack =
-      rollbackStack.entrySet().iterator();
-    while (itStack.hasNext()) {
-      Map.Entry<Long, RootProcedureState<TEnvironment>> entry = itStack.next();
-      RootProcedureState<TEnvironment> procStack = entry.getValue();
-      if (procStack.isValid()) continue;
-
-      for (Procedure<TEnvironment> proc : procStack.getSubproceduresStack()) {
-        LOG.error("Corrupted " + proc);
-        procedures.remove(proc.getProcId());
-        runnableList.remove(proc);
-        if (waitingSet != null) waitingSet.remove(proc);
-        corruptedCount++;
+    // 3. Check the waiting procedures to see if some of them can be added to runnable.
+    waitingList.forEach(proc -> {
+      if (!proc.hasChildren()) {
+        // Normally, WAITING procedures should be waken by its children.
+        // But, there is a case that, all the children are successful and before
+        // they can wake up their parent procedure, the master was killed.
+        // So, during recovering the procedures from ProcedureWal, its children
+        // are not loaded because of their SUCCESS state.
+        // So we need to continue to run this WAITING procedure. But before
+        // executing, we need to set its state to RUNNABLE, otherwise, a exception
+        // will throw:
+        // Preconditions.checkArgument(procedure.getState() == ProcedureState.RUNNABLE,
+        // "NOT RUNNABLE! " + procedure.toString());
+        proc.setState(ProcedureState.RUNNABLE);
+        runnableList.add(proc);
+      } else {
+        proc.afterReplay(getEnvironment());
       }
-      itStack.remove();
-    }
-
-    if (abortOnCorruption && corruptedCount > 0) {
-      throw new IOException("found " + corruptedCount + " procedures on replay");
-    }
+    });
 
     // 4. Push the procedures to the timeout executor
-    if (waitingSet != null && !waitingSet.isEmpty()) {
-      for (Procedure<TEnvironment> proc: waitingSet) {
-        proc.afterReplay(getEnvironment());
-        timeoutExecutor.add(proc);
-      }
-    }
+    waitingTimeoutList.forEach(proc -> {
+      proc.afterReplay(getEnvironment());
+      timeoutExecutor.add(proc);
+    });
     // 5. restore locks
     restoreLocks();
     // 6. Push the procedure to the scheduler
@@ -664,8 +652,30 @@ public class ProcedureExecutor<TEnvironment> {
       if (!p.hasParent()) {
         sendProcedureLoadedNotification(p.getProcId());
       }
-      scheduler.addBack(p);
+      // If the procedure holds the lock, put the procedure in front
+      // If its parent holds the lock, put the procedure in front
+      // TODO. Is that possible that its ancestor holds the lock?
+      // For now, the deepest procedure hierarchy is:
+      // ModifyTableProcedure -> ReopenTableProcedure ->
+      // MoveTableProcedure -> Unassign/AssignProcedure
+      // But ModifyTableProcedure and ReopenTableProcedure won't hold the lock
+      // So, check parent lock is enough(a tricky case is resovled by HBASE-21384).
+      // If some one change or add new procedures making 'grandpa' procedure
+      // holds the lock, but parent procedure don't hold the lock, there will
+      // be a problem here. We have to check one procedure's ancestors.
+      // And we need to change LockAndQueue.hasParentLock(Procedure<?> proc) method
+      // to check all ancestors too.
+      if (p.isLockedWhenLoading() || (p.hasParent() && procedures
+          .get(p.getParentProcId()).isLockedWhenLoading())) {
+        scheduler.addFront(p, false);
+      } else {
+        // if it was not, it can wait.
+        scheduler.addBack(p, false);
+      }
     });
+    // After all procedures put into the queue, signal the worker threads.
+    // Otherwise, there is a race condition. See HBASE-21364.
+    scheduler.signalAll();
   }
 
   /**
@@ -1660,7 +1670,19 @@ public class ProcedureExecutor<TEnvironment> {
     int stackTail = subprocStack.size();
     while (stackTail-- > 0) {
       Procedure<TEnvironment> proc = subprocStack.get(stackTail);
-
+      // For the sub procedures which are successfully finished, we do not rollback them.
+      // Typically, if we want to rollback a procedure, we first need to rollback it, and then
+      // recursively rollback its ancestors. The state changes which are done by sub procedures
+      // should be handled by parent procedures when rolling back. For example, when rolling back a
+      // MergeTableProcedure, we will schedule new procedures to bring the offline regions online,
+      // instead of rolling back the original procedures which offlined the regions(in fact these
+      // procedures can not be rolled back...).
+      if (proc.isSuccess()) {
+        // Just do the cleanup work, without actually executing the rollback
+        subprocStack.remove(stackTail);
+        cleanupAfterRollbackOneStep(proc);
+        continue;
+      }
       LockState lockState = acquireLock(proc);
       if (lockState != LockState.LOCK_ACQUIRED) {
         // can't take a lock on the procedure, add the root-proc back on the
@@ -1699,6 +1721,31 @@ public class ProcedureExecutor<TEnvironment> {
     return LockState.LOCK_ACQUIRED;
   }
 
+  private void cleanupAfterRollbackOneStep(Procedure<TEnvironment> proc) {
+    if (proc.removeStackIndex()) {
+      if (!proc.isSuccess()) {
+        proc.setState(ProcedureState.ROLLEDBACK);
+      }
+
+      // update metrics on finishing the procedure (fail)
+      proc.updateMetricsOnFinish(getEnvironment(), proc.elapsedTime(), false);
+
+      if (proc.hasParent()) {
+        store.delete(proc.getProcId());
+        procedures.remove(proc.getProcId());
+      } else {
+        final long[] childProcIds = rollbackStack.get(proc.getProcId()).getSubprocedureIds();
+        if (childProcIds != null) {
+          store.delete(proc, childProcIds);
+        } else {
+          store.update(proc);
+        }
+      }
+    } else {
+      store.update(proc);
+    }
+  }
+
   /**
    * Execute the rollback of the procedure step.
    * It updates the store with the new state (stack index)
@@ -1727,26 +1774,7 @@ public class ProcedureExecutor<TEnvironment> {
       throw new RuntimeException(msg);
     }
 
-    if (proc.removeStackIndex()) {
-      proc.setState(ProcedureState.ROLLEDBACK);
-
-      // update metrics on finishing the procedure (fail)
-      proc.updateMetricsOnFinish(getEnvironment(), proc.elapsedTime(), false);
-
-      if (proc.hasParent()) {
-        store.delete(proc.getProcId());
-        procedures.remove(proc.getProcId());
-      } else {
-        final long[] childProcIds = rollbackStack.get(proc.getProcId()).getSubprocedureIds();
-        if (childProcIds != null) {
-          store.delete(proc, childProcIds);
-        } else {
-          store.update(proc);
-        }
-      }
-    } else {
-      store.update(proc);
-    }
+    cleanupAfterRollbackOneStep(proc);
 
     return LockState.LOCK_ACQUIRED;
   }

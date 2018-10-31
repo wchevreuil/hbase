@@ -719,6 +719,10 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
     this.lockedWhenLoading = true;
   }
 
+  public boolean isLockedWhenLoading() {
+    return lockedWhenLoading;
+  }
+
   // ==============================================================================================
   //  Runtime state, updated every operation by the ProcedureExecutor
   //
@@ -988,7 +992,13 @@ public abstract class Procedure<TEnvironment> implements Comparable<Procedure<TE
       LOG.debug("{} is already bypassed, skip acquiring lock.", this);
       return;
     }
-
+    // this can happen if the parent stores the sub procedures but before it can
+    // release its lock, the master restarts
+    if (getState() == ProcedureState.WAITING && !holdLock(env)) {
+      LOG.debug("{} is in WAITING STATE, and holdLock= false, skip acquiring lock.", this);
+      lockedWhenLoading = false;
+      return;
+    }
     LOG.debug("{} held the lock before restarting, call acquireLock to restore it.", this);
     LockState state = acquireLock(env);
     assert state == LockState.LOCK_ACQUIRED;
