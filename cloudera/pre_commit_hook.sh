@@ -103,7 +103,7 @@ cd "${COMPONENT}"
 git format-patch --stdout -1 "${GIT_COMMIT}" >"${PATCHFILE}"
 # Yetus in robot mode needs an upstream git branch that it can use as the source
 # of truth about what the working checkout should look like before it applies
-# the patch. Unfortunately, Gerrit doesn't maintain a breanch for each proposed
+# the patch. Unfortunately, Gerrit doesn't maintain a branch for each proposed
 # changeset so we can't just add GIT_BRANCH as a remote.  origin/GERRIT_BRANCH
 # points to the head of changes that have been merged already. So if we want to
 # support chains of proposed reviews such that those after the first can build,

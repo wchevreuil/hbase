@@ -292,3 +292,15 @@ function mvnsite_filefilter
   fi
 }
 
+## @description  Adds mount points of repositories to DOCKER_EXTRAARGS.
+## @audience     private
+## @stability    evolving
+function hbase_docker_support
+{
+  # Yetus needs an upstream branch for source of truth. See 'cloudera/pre_commit_hook.sh'.
+  # In Docker mode the repository is on a different path and does not have access to 'fake_upstream'
+  # and back to the original path. We need to mount these by adding to DOCKER_EXTRAARGS.
+  yetus_debug "Adding repositories as mount points to DOCKER_EXTRAARGS"
+  DOCKER_EXTRAARGS=("${DOCKER_EXTRAARGS[@]}" -v "/data/jenkins/workspace/hbase-pre-commit/fake_upstream:/data/jenkins/workspace/hbase-pre-commit/fake_upstream")
+  DOCKER_EXTRAARGS=("${DOCKER_EXTRAARGS[@]}" -v "/data/jenkins/workspace/hbase-pre-commit/repos/hbase:/data/jenkins/workspace/hbase-pre-commit/repos/hbase")
+}
