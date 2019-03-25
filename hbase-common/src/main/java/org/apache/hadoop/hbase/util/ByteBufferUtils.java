@@ -29,10 +29,13 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 import org.apache.hadoop.hbase.io.ByteBufferWriter;
+import org.apache.hadoop.hbase.io.ByteBufferWriterOutputStream;
 import org.apache.hadoop.hbase.io.util.StreamUtils;
 import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.WritableUtils;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import sun.nio.ch.DirectBuffer;
 
 import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
@@ -51,6 +54,8 @@ public final class ByteBufferUtils {
   @VisibleForTesting
   final static boolean UNSAFE_AVAIL = UnsafeAvailChecker.isAvailable();
   public final static boolean UNSAFE_UNALIGNED = UnsafeAvailChecker.unaligned();
+
+  private static final Logger LOG = LoggerFactory.getLogger(ByteBufferUtils.class);
 
   private ByteBufferUtils() {
   }
@@ -1121,7 +1126,7 @@ public final class ByteBufferUtils {
 
   /**
    * Copies bytes from given array's offset to length part into the given buffer. Puts the bytes
-   * to buffer's given position. This doesn't affact the position of buffer.
+   * to buffer's given position. This doesn't affact the positio n of buffer.
    * @param out
    * @param in
    * @param inOffset
@@ -1152,10 +1157,13 @@ public final class ByteBufferUtils {
   public static void copyFromBufferToArray(byte[] out, ByteBuffer in, int sourceOffset,
       int destinationOffset, int length) {
     if (in.hasArray()) {
+      LOG.debug(" Using System.arraycopy");
       System.arraycopy(in.array(), sourceOffset + in.arrayOffset(), out, destinationOffset, length);
     } else if (UNSAFE_AVAIL) {
+      LOG.debug(" Using UnsafeAccess.copy");
       UnsafeAccess.copy(in, sourceOffset, out, destinationOffset, length);
     } else {
+      LOG.debug(" Using ByteBuffer.duplicate");
       ByteBuffer inDup = in.duplicate();
       inDup.position(sourceOffset);
       inDup.get(out, destinationOffset, length);

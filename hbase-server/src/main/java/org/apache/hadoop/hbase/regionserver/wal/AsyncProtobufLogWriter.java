@@ -166,6 +166,7 @@ public class AsyncProtobufLogWriter extends AbstractProtobufLogWriter
       short replication, long blockSize) throws IOException, StreamLacksCapabilityException {
     this.output = AsyncFSOutputHelper.createOutput(fs, path, overwritable, false, replication,
         blockSize, eventLoopGroup, channelClass);
+    LOG.info("Created output stream instance: {} for {}", output.getClass(), path.getName());
     this.asyncOutputWrapper = new OutputStreamWrapper(output);
   }
 

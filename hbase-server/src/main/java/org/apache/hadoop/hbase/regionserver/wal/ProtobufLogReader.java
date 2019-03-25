@@ -30,6 +30,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.codec.Codec;
 import org.apache.hadoop.hbase.HBaseInterfaceAudience;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
@@ -384,6 +385,17 @@ public class ProtobufLogReader extends ReaderBase {
           if (expectedCells != actualCells) {
             throw new EOFException("Only read " + actualCells); // other info added in catch
           }
+        } catch (KeyValueUtil.KVCorruptionException e){
+          StringBuilder message = new StringBuilder();
+          message.append("Found corrupt KV when reading edit from WAL:\n ")
+            .append("\t Wal path: ").append(this.path).append("\n")
+            .append("\t Cell decoder: ").append(this.cellDecoder.getClass()).append("\n")
+            .append("\t Wal InputStream offset: ").append(posBefore).append("\n")
+            .append("\t KV length: ").append(this.inputStream.getPos() - posBefore).append("\n")
+            .append("\t Corrupt KV key: ").append(entry.getKey().toString()).append("\n")
+            .append("\t Corrupt KV write time: ").append(entry.getKey().getWriteTime()).append("\n");
+          LOG.warn(message.toString(), e);
+          continue;
         } catch (Exception ex) {
           String posAfterStr = "<unknown>";
           try {

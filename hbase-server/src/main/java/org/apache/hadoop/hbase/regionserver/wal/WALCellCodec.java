@@ -47,7 +47,8 @@ import org.apache.hadoop.io.IOUtils;
 
 import org.apache.hbase.thirdparty.com.google.protobuf.ByteString;
 import org.apache.hbase.thirdparty.com.google.protobuf.UnsafeByteOperations;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Compression in this class is lifted off Compressor/KeyValueCompression.
@@ -353,12 +354,29 @@ public class WALCellCodec implements Codec {
   }
 
   public static class EnsureKvEncoder extends BaseEncoder {
+
+    private static final Logger LOG = LoggerFactory.getLogger(EnsureKvEncoder.class);
+
     public EnsureKvEncoder(OutputStream out) {
       super(out);
     }
     @Override
     public void write(Cell cell) throws IOException {
       checkFlushed();
+      if(cell instanceof  KeyValue){
+        KeyValue kv = (KeyValue)cell;
+        byte[] kvBytes = kv.getBuffer();
+        try {
+          KeyValueUtil.checkKeyValueBytes(kvBytes, kv.getOffset(), kv.getLength(), true);
+        }catch(IllegalArgumentException e){
+          String kvString = Bytes.toStringBinary(kvBytes, 0, kvBytes.length);
+          if(!kvString.contains("tablestate") && !kvString.contains("regioninfo")) {
+            LOG.warn(
+              "Got a KV validation error while writing. Just logging it for now and allowing " +
+                "to continue: ", e);
+          }
+        }
+      }
       // Make sure to write tags into WAL
       ByteBufferUtils.putInt(this.out, KeyValueUtil.getSerializedSize(cell, true));
       KeyValueUtil.oswrite(cell, this.out, true);

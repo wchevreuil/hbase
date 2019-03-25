@@ -21,9 +21,13 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.io.util.StreamUtils;
 import org.apache.hadoop.hbase.util.ByteBufferUtils;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * When deal with OutputStream which is not ByteBufferWriter type, wrap it with this class. We will
@@ -42,6 +46,8 @@ public class ByteBufferWriterOutputStream extends OutputStream
     implements ByteBufferWriter {
 
   private static final int DEFAULT_BUFFER_SIZE = 4096;
+
+  private static final Logger LOG = LoggerFactory.getLogger(ByteBufferWriterOutputStream.class);
 
   private final OutputStream os;
   private final int bufSize;
@@ -78,13 +84,29 @@ public class ByteBufferWriterOutputStream extends OutputStream
     if (this.buf == null) {
       this.buf = new byte[this.bufSize];
     }
+    LOG.debug("ByteBuffer: {}", b.getClass());
+    byte[] testBuf = new byte[len];
     int totalCopied = 0;
     while (totalCopied < len) {
       int bytesToCopy = Math.min((len - totalCopied), this.bufSize);
-      ByteBufferUtils.copyFromBufferToArray(this.buf, b, off + totalCopied, 0,
-          bytesToCopy);
+      LOG.debug("1st log for current thread writing: {}", Thread.currentThread().getName());
+      ByteBufferUtils.copyFromBufferToArray(this.buf, b, off + totalCopied, 0, bytesToCopy);
+      LOG.debug("2nd log for current thread writing: {}", Thread.currentThread().getName());
+      this.os.write(this.buf, 0, bytesToCopy);
+      //copying whatever chunk copied from bytebuffer to this.buf to a 3rd array, so that we can
+      //have an array with what exactly has been written to OS, for the sanity checks
+      System.arraycopy(this.buf, 0, testBuf, totalCopied, bytesToCopy);
       this.os.write(this.buf, 0, bytesToCopy);
       totalCopied += bytesToCopy;
+    }
+    try {
+      KeyValueUtil.checkKeyValueBytes(testBuf, 0, testBuf.length, true);
+    } catch (IllegalArgumentException e) {
+      String kv = Bytes.toStringBinary(testBuf, 0, testBuf.length);
+      if (!kv.contains("tablestate") && !kv.contains("regioninfo")) {
+        LOG.warn("Got a KV validation error while writing. Just logging it for now "
+          + "and allowing to continue: ", e);
+      }
     }
   }
 
