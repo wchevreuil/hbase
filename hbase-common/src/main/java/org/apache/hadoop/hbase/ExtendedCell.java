@@ -67,6 +67,7 @@ public interface ExtendedCell extends RawCell, HeapSize {
 
       // Tags byte array
       out.write(getTagsArray(), getTagsOffset(), getTagsLength());
+
     }
 
     return getSerializedSize(withTags);

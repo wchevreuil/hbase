@@ -65,6 +65,7 @@ class NettyServerRpcConnection extends ServerRpcConnection {
           buf.release();
         }
       };
+      //>>>> here is where the whole DirectByteBuffer thing starts.
       process(new SingleByteBuff(buf.nioBuffer()));
     } else {
       ByteBuffer connectionHeader = ByteBuffer.allocate(buf.readableBytes());

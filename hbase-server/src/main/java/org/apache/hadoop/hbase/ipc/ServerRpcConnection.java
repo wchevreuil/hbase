@@ -77,6 +77,8 @@ import org.apache.hadoop.security.authorize.AuthorizationException;
 import org.apache.hadoop.security.authorize.ProxyUsers;
 import org.apache.hadoop.security.token.SecretManager.InvalidToken;
 import org.apache.hadoop.security.token.TokenIdentifier;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Reads calls from a connection and queues them for handling. */
 @edu.umd.cs.findbugs.annotations.SuppressWarnings(
@@ -84,6 +86,9 @@ import org.apache.hadoop.security.token.TokenIdentifier;
     justification="False positive according to http://sourceforge.net/p/findbugs/bugs/1032/")
 @InterfaceAudience.Private
 abstract class ServerRpcConnection implements Closeable {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ServerRpcConnection.class);
+
   /**  */
   protected final RpcServer rpcServer;
   // If the connection header has been read or not.
@@ -193,6 +198,7 @@ abstract class ServerRpcConnection implements Closeable {
     String className = header.getCellBlockCodecClass();
     if (className == null || className.length() == 0) return;
     try {
+      LOG.debug("Setting codec class: {}", className);
       this.codec = (Codec)Class.forName(className).getDeclaredConstructor().newInstance();
     } catch (Exception e) {
       throw new UnsupportedCellCodecException(className, e);

@@ -58,6 +58,7 @@ import org.apache.hadoop.hbase.CellScanner;
 import org.apache.hadoop.hbase.CellUtil;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HConstants;
+import org.apache.hadoop.hbase.KeyValueUtil;
 import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Delete;
 import org.apache.hadoop.hbase.client.Durability;
@@ -537,15 +538,14 @@ public class WALSplitter {
   }
 
   /**
-   * Check whether there is recovered.edits in the region dir
-   * @param walFS FileSystem
+   * Check whether there are recovered.edits in the region dir
    * @param conf conf
    * @param regionInfo the region to check
    * @throws IOException IOException
    * @return true if recovered.edits exist in the region dir
    */
-  public static boolean hasRecoveredEdits(final FileSystem walFS,
-      final Configuration conf, final RegionInfo regionInfo) throws IOException {
+  public static boolean hasRecoveredEdits(final Configuration conf,
+    final RegionInfo regionInfo) throws IOException {
     // No recovered.edits for non default replica regions
     if (regionInfo.getReplicaId() != RegionInfo.DEFAULT_REPLICA_ID) {
       return false;
@@ -554,6 +554,7 @@ public class WALSplitter {
     //directly without converting it to default replica's regioninfo.
     Path regionDir = FSUtils.getWALRegionDir(conf, regionInfo.getTable(),
         regionInfo.getEncodedName());
+    FileSystem walFS = regionDir.getFileSystem(conf);
     NavigableSet<Path> files = getSplitEditFilesSorted(walFS, regionDir);
     return files != null && !files.isEmpty();
   }
@@ -1586,9 +1587,17 @@ public class WALSplitter {
           }
           filterCellByStore(logEntry);
           if (!logEntry.getEdit().isEmpty()) {
-            wap.w.append(logEntry);
-            this.updateRegionMaximumEditLogSeqNum(logEntry);
-            editsCount++;
+            try {
+              wap.w.append(logEntry);
+              this.updateRegionMaximumEditLogSeqNum(logEntry);
+              editsCount++;
+            } catch(KeyValueUtil.KVCorruptionException e){
+              StringBuilder message = new StringBuilder();
+              message.append("Found corrupt KV when writing recovered edit:\n ")
+                .append("\t Corrupt KV key: ").append(logEntry.getKey().toString()).append("\n")
+                .append("\t Corrupt KV write time: ").append(logEntry.getKey().getWriteTime()).append("\n");
+              LOG.warn(message.toString(), e);
+            }
           } else {
             wap.incrementSkippedEdits(1);
           }

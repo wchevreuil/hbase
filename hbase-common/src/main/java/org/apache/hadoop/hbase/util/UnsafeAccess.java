@@ -333,6 +333,7 @@ public final class UnsafeAccess {
   private static void unsafeCopy(Object src, long srcAddr, Object dst, long destAddr, long len) {
     while (len > 0) {
       long size = (len > UNSAFE_COPY_THRESHOLD) ? UNSAFE_COPY_THRESHOLD : len;
+      //looks like the issue, shouldn't be size, instead of len?
       theUnsafe.copyMemory(src, srcAddr, dst, destAddr, len);
       len -= size;
       srcAddr += size;
@@ -355,12 +356,15 @@ public final class UnsafeAccess {
     long srcAddress = srcOffset;
     Object srcBase = null;
     if (src.isDirect()) {
+      //need to check on this
       srcAddress = srcAddress + ((DirectBuffer) src).address();
     } else {
       srcAddress = srcAddress + BYTE_ARRAY_BASE_OFFSET + src.arrayOffset();
       srcBase = src.array();
     }
     long destAddress = destOffset + BYTE_ARRAY_BASE_OFFSET;
+    LOG.debug("Unsafely copying {} bytes from DBB offset {} to byte[] offset {}", length,
+      srcAddress, destAddress);
     unsafeCopy(srcBase, srcAddress, dest, destAddress, length);
   }
 

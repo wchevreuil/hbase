@@ -30,6 +30,8 @@ import org.apache.hadoop.hbase.NoTagsKeyValue;
 import org.apache.hadoop.hbase.nio.ByteBuff;
 import org.apache.hadoop.hbase.util.ByteBufferUtils;
 import org.apache.yetus.audience.InterfaceAudience;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Codec that does KeyValue version 1 serialization.
@@ -72,16 +74,26 @@ public class KeyValueCodec implements Codec {
     @Override
     protected Cell parseCell() throws IOException {
       // No tags here
-      return KeyValueUtil.iscreate(in, false);
+      return KeyValueUtil.createKeyValueFromInputStream(in, false);
     }
   }
 
   public static class ByteBuffKeyValueDecoder implements Codec.Decoder {
 
+    private static final Logger LOG = LoggerFactory.getLogger(KeyValueCodec.ByteBuffKeyValueDecoder.class);
+
     protected final ByteBuff buf;
     protected Cell current = null;
 
     public ByteBuffKeyValueDecoder(ByteBuff buf) {
+      if(LOG.isDebugEnabled()) {
+        StringBuilder builder = new StringBuilder();
+        StackTraceElement[] elements = Thread.currentThread().getStackTrace();
+        for (StackTraceElement e : elements) {
+          builder.append(e.getClassName()).append(".").append(e.getMethodName()).append("(").append(e.getLineNumber()).append(")").append("\n");
+        }
+        LOG.debug("Printing stack trace of who is calling this constructor: {}", builder.toString());
+      }
       this.buf = buf;
     }
 
@@ -94,6 +106,16 @@ public class KeyValueCodec implements Codec {
       ByteBuffer bb = buf.asSubByteBuffer(len);
       if (bb.isDirect()) {
         this.current = createCell(bb, bb.position(), len);
+        //include sanity check here, but only if debug is ON
+        if(LOG.isDebugEnabled()) {
+          LOG.debug("Using DirectByteBuffer");
+          byte[] bytes = new byte[len];
+          bb.get(bytes, bb.position(), len);
+          if(KeyValueUtil.isBufferValid(bytes, 0, len, true)){
+            LOG.warn("DBB corruption already happens while scanning the "
+              + "KVs from the RPC mutation request");
+          }
+        }
       } else {
         this.current = createCell(bb.array(), bb.arrayOffset() + bb.position(), len);
       }
@@ -114,7 +136,6 @@ public class KeyValueCodec implements Codec {
       // We know there is not going to be any tags.
       return new NoTagsByteBufferKeyValue(bb, pos, len);
     }
-
   }
 
   /**

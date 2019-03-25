@@ -176,6 +176,7 @@ public abstract class AbstractProtobufLogWriter {
     if (LOG.isTraceEnabled()) {
       LOG.trace("Initialized protobuf WAL=" + path + ", compression=" + doCompress);
     }
+    LOG.info("Initiating WAL Writer using cell encoder class: {}", cellEncoder.getClass());
   }
 
   private void initAfterHeader0(boolean doCompress) throws IOException {
