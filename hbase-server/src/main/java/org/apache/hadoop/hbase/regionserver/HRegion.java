@@ -7818,6 +7818,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
 
       Cell currentValue = null;
       long ts = now;
+      boolean firstWrite = false;
       if (idx < currentValues.size() && CellUtil.matchingQualifier(currentValues.get(idx), inc)) {
         currentValue = currentValues.get(idx);
         ts = Math.max(now, currentValue.getTimestamp());
@@ -7826,6 +7827,8 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
         tags = Tag.carryForwardTags(tags, currentValue);
         if (i < (sortedIncrements.size() - 1) &&
             !CellUtil.matchingQualifier(inc, sortedIncrements.get(i + 1))) idx++;
+      } else {
+        firstWrite = true;
       }
 
       // Append new incremented KeyValue to list
@@ -7852,7 +7855,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
             RegionObserver.MutationType.INCREMENT, increment, currentValue, newValue);
       }
       allKVs.add(newValue);
-      if (writeBack) {
+      if (writeBack || firstWrite) {
         results.add(newValue);
       }
     }
