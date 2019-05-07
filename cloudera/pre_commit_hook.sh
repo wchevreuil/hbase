@@ -56,8 +56,12 @@ if [ ! -x "${TESTPATCHBIN}" ] && [ -n "${TEST_FRAMEWORK}" ] && [ -d "${TEST_FRAM
   exit 1
 fi
 
-
 cd "${WORKSPACE}"
+# Download Maven settings file to use cloudera-mirror
+echo "[INFO] Downloading settings.xml file to ${HOME}/.m2"
+curl -L --fail -O "https://github.infra.cloudera.com/raw/Kitchen/puppet/master/modules/user/files/jenkins_m2_settings.xml"
+mkdir -p ${HOME}/.m2
+mv -v ${WORKSPACE}/jenkins_m2_settings.xml ${HOME}/.m2/settings.xml
 
 if [[ "true" = "${DEBUG}" ]]; then
   echo "[DEBUG] debug mode is on, dumping the test patch env"
