@@ -540,7 +540,7 @@ public class KeyValueUtil {
     }
     return true;
   }
-
+  
   public static void checkKeyValueBytes(byte[] buf, int offset, int length, boolean withTags) {
     int pos = offset, endOffset = offset + length;
     // check the key

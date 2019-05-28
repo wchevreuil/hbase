@@ -105,6 +105,7 @@ public class KeyValueCodec implements Codec {
       int len = buf.getInt();
       ByteBuffer bb = buf.asSubByteBuffer(len);
       if (bb.isDirect()) {
+        LOG.debug("Using DirectByteBuffer");
         this.current = createCell(bb, bb.position(), len);
         //include sanity check here, but only if debug is ON
         if(LOG.isDebugEnabled()) {
