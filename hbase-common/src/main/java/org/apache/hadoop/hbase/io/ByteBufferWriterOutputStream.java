@@ -101,7 +101,8 @@ public class ByteBufferWriterOutputStream extends OutputStream
         + "\n\t DBB offset: {} "
         + "\n\t bytes to copy: {} "
         + "\n Will check normal copy next...", off, len);
-      b.get(testBuf,off,len);
+      b.position(off);
+      b.get(testBuf,0,len);
       if(!KeyValueUtil.isBufferValid(testBuf, 0, testBuf.length, true)){
         LOG.warn("Normal copy is also corrupt. It seems the corruption is already on the DBB itself");
       }

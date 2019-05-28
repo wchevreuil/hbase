@@ -106,13 +106,15 @@ public class KeyValueCodec implements Codec {
       ByteBuffer bb = buf.asSubByteBuffer(len);
       if (bb.isDirect()) {
         LOG.debug("Using DirectByteBuffer");
+        int offset = bb.position();
         this.current = createCell(bb, bb.position(), len);
         //include sanity check here, but only if debug is ON
         if(LOG.isDebugEnabled()) {
           LOG.debug("Using DirectByteBuffer");
           byte[] bytes = new byte[len];
-          bb.get(bytes, bb.position(), len);
-          if(KeyValueUtil.isBufferValid(bytes, 0, len, true)){
+          bb.get(bytes, 0, len);
+          bb.position(offset);
+          if(!KeyValueUtil.isBufferValid(bytes, 0, len, true)){
             LOG.warn("DBB corruption already happens while scanning the "
               + "KVs from the RPC mutation request");
           }
