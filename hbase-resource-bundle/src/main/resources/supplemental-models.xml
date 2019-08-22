@@ -2080,6 +2080,22 @@ Copyright 2010 FasterXML.com
 
   <supplement>
     <project>
+      <groupId>jline</groupId>
+      <artifactId>jline</artifactId>
+      <name>JLine</name>
+      <version>2.11</version>
+      <licenses>
+        <license>
+          <name>BSD License</name>
+          <url>http://www.opensource.org/licenses/bsd-license.php</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+    </project>
+  </supplement>
+
+  <supplement>
+    <project>
       <groupId>org.jruby.jcodings</groupId>
       <artifactId>jcodings</artifactId>
       <name>JCodings</name>

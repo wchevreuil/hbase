@@ -1406,9 +1406,9 @@
     <protobuf.plugin.version>0.5.0</protobuf.plugin.version>
     <thrift.path>thrift</thrift.path>
     <thrift.version>0.12.0</thrift.version>
-    <zookeeper.version>3.4.6.7.1.0.0-SNAPSHOT</zookeeper.version>
-    <!-- What ZooKeeper 3.4.x depends on and nothing more -->
-    <jline.version>0.9.94</jline.version>
+    <zookeeper.version>3.5.5</zookeeper.version>
+    <!-- providing JLine on the classpath for zookeeper (see HBASE-20108) -->
+    <jline.version>2.11</jline.version>
     <slf4j.version>1.7.25</slf4j.version>
     <clover.version>4.0.3</clover.version>
     <jamon-runtime.version>2.4.1</jamon-runtime.version>
