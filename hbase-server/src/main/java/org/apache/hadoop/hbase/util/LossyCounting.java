@@ -32,6 +32,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.hbase.thirdparty.com.google.common.annotations.VisibleForTesting;
+import org.apache.hbase.thirdparty.com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 /**
  * LossyCounting utility, bounded data structure that maintains approximate high frequency
@@ -74,7 +75,8 @@ public class LossyCounting<T> {
     this.data = new ConcurrentHashMap<>();
     this.listener = listener;
     calculateCurrentTerm();
-    executor = Executors.newSingleThreadExecutor();
+    executor = Executors.newSingleThreadExecutor(
+      new ThreadFactoryBuilder().setDaemon(true).setNameFormat("lossy-count-%d").build());
   }
 
   LossyCounting(String name, Configuration conf) {
