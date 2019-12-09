@@ -1884,7 +1884,7 @@ public class HRegion implements HeapSize, PropagatingConfigurationObserver, Regi
   }
 
   @VisibleForTesting
-  void setTableDescriptor(TableDescriptor desc) {
+  public void setTableDescriptor(TableDescriptor desc) {
     htableDescriptor = desc;
   }
 
