@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,8 +19,8 @@
 package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.Optional;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.CompatibilitySingletonFactory;
 import org.apache.hadoop.hbase.ipc.RpcServer;
@@ -38,13 +38,12 @@ public class MetricsUserAggregateImpl implements MetricsUserAggregate{
   private final UserProvider userProvider;
 
   private final MetricsUserAggregateSource source;
-  private final LossyCounting userMetricLossyCounting;
+  private final LossyCounting<MetricsUserSource> userMetricLossyCounting;
 
   public MetricsUserAggregateImpl(Configuration conf) {
     source = CompatibilitySingletonFactory.getInstance(MetricsRegionServerSourceFactory.class)
         .getUserAggregate();
-    userMetricLossyCounting = new LossyCounting<MetricsUserSource>("userMetrics",
-        (LossyCounting.LossyCountingListener<MetricsUserSource>) key -> source.deregister(key));
+    userMetricLossyCounting = new LossyCounting<>("userMetrics", conf, source::deregister);
     this.userProvider = UserProvider.instantiate(conf);
   }
 
@@ -62,7 +61,7 @@ public class MetricsUserAggregateImpl implements MetricsUserAggregate{
       } catch (IOException ignore) {
       }
     }
-    return user.isPresent() ? user.get().getShortName() : null;
+    return user.map(User::getShortName).orElse(null);
   }
 
   @VisibleForTesting
