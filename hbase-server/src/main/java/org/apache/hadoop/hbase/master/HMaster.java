@@ -2706,6 +2706,7 @@ public class HMaster extends HRegionServer implements MasterServices {
   @Override
   public void abort(String reason, Throwable cause) {
     if (isAborted() || isStopped()) {
+      LOG.debug("Abort called but aborted={}, stopped={}", isAborted(), isStopped());
       return;
     }
     setAbortRequested();
