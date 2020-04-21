@@ -633,7 +633,7 @@ public class SnapshotManager extends MasterProcedureManager implements Stoppable
       builder.setVersion(SnapshotDescriptionUtils.SNAPSHOT_LAYOUT_VERSION);
     }
     RpcServer.getRequestUser().ifPresent(user -> {
-      if (AccessChecker.isAuthorizationSupported(master.getConfiguration())) {
+      if (User.isHBaseSecurityEnabled(master.getConfiguration())) {
         builder.setOwner(user.getShortName());
       }
     });
