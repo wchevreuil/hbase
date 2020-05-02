@@ -31,8 +31,8 @@
   <parent>
     <groupId>org.apache</groupId>
     <artifactId>apache</artifactId>
-    <version>21</version>
-    <relativePath />
+    <version>23</version>
+    <relativePath/>
     <!-- no parent resolution -->
   </parent>
   <groupId>org.apache.hbase</groupId>
@@ -778,7 +778,6 @@
           <!-- excludes are inherited -->
           <groupId>org.apache.rat</groupId>
           <artifactId>apache-rat-plugin</artifactId>
-          <version>${apache.rat.version}</version>
           <configuration>
             <excludes>
               <exclude>**/*.versionsBackup</exclude>
@@ -1430,7 +1429,6 @@
     <commons-crypto.version>1.0.0</commons-crypto.version>
     <curator.version>4.2.0</curator.version>
     <!-- Plugin Dependencies -->
-    <apache.rat.version>0.12</apache.rat.version>
     <asciidoctor.plugin.version>1.5.5</asciidoctor.plugin.version>
     <asciidoctorj.pdf.version>1.5.0-alpha.15</asciidoctorj.pdf.version>
     <build.helper.maven.version>3.0.0</build.helper.maven.version>
