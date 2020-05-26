@@ -35,6 +35,7 @@ import org.apache.hadoop.hbase.TableName;
 import org.apache.hadoop.hbase.client.Connection;
 import org.apache.hadoop.hbase.client.ConnectionFactory;
 import org.apache.hadoop.hbase.client.Delete;
+import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Mutation;
 import org.apache.hadoop.hbase.client.Put;
 import org.apache.hadoop.hbase.client.Result;
@@ -63,6 +64,7 @@ public class SyncTable extends Configured implements Tool {
   static final String SOURCE_ZK_CLUSTER_CONF_KEY = "sync.table.source.zk.cluster";
   static final String TARGET_ZK_CLUSTER_CONF_KEY = "sync.table.target.zk.cluster";
   static final String DRY_RUN_CONF_KEY="sync.table.dry.run";
+  static final String EXTRA_CHECK_SOURCE_CONF_KEY="sync.table.recheck.source";
   
   Path sourceHashDir;
   String sourceTableName;
@@ -71,6 +73,7 @@ public class SyncTable extends Configured implements Tool {
   String sourceZkCluster;
   String targetZkCluster;
   boolean dryRun;
+  boolean recheckSource;
   
   Counters counters;
   
@@ -127,6 +130,7 @@ public class SyncTable extends Configured implements Tool {
       jobConf.set(TARGET_ZK_CLUSTER_CONF_KEY, targetZkCluster);
     }
     jobConf.setBoolean(DRY_RUN_CONF_KEY, dryRun);
+    jobConf.setBoolean(EXTRA_CHECK_SOURCE_CONF_KEY, recheckSource);
     
     TableMapReduceUtil.initTableMapperJob(targetTableName, tableHash.initScan(),
         SyncMapper.class, null, null, job);
@@ -161,6 +165,7 @@ public class SyncTable extends Configured implements Tool {
     Table sourceTable;
     Table targetTable;
     boolean dryRun;
+    boolean reCheckSource;
     
     HashTable.TableHash sourceTableHash;
     HashTable.TableHash.Reader sourceHashReader;
@@ -172,7 +177,7 @@ public class SyncTable extends Configured implements Tool {
      
     public static enum Counter {BATCHES, HASHES_MATCHED, HASHES_NOT_MATCHED, SOURCEMISSINGROWS,
       SOURCEMISSINGCELLS, TARGETMISSINGROWS, TARGETMISSINGCELLS, ROWSWITHDIFFS, DIFFERENTCELLVALUES,
-      MATCHINGROWS, MATCHINGCELLS, EMPTY_BATCHES, RANGESMATCHED, RANGESNOTMATCHED};
+      MATCHINGROWS, MATCHINGCELLS, EMPTY_BATCHES, RANGESMATCHED, RANGESNOTMATCHED, RECHECK_FOUND};
     
     @Override
     protected void setup(Context context) throws IOException {
@@ -184,7 +189,8 @@ public class SyncTable extends Configured implements Tool {
           TableOutputFormat.OUTPUT_CONF_PREFIX);
       sourceTable = openTable(sourceConnection, conf, SOURCE_TABLE_CONF_KEY);
       targetTable = openTable(targetConnection, conf, TARGET_TABLE_CONF_KEY);
-      dryRun = conf.getBoolean(SOURCE_TABLE_CONF_KEY, false);
+      dryRun = conf.getBoolean(DRY_RUN_CONF_KEY, false);
+      reCheckSource = conf.getBoolean(EXTRA_CHECK_SOURCE_CONF_KEY, false);
       
       sourceTableHash = HashTable.TableHash.read(conf, sourceHashDir);
       LOG.info("Read source hash manifest: " + sourceTableHash);
@@ -486,14 +492,55 @@ public class SyncTable extends Configured implements Tool {
           }
           context.getCounter(Counter.SOURCEMISSINGCELLS).increment(1);
           matchingRow = false;
-          
-          if (!dryRun) {
-            if (delete == null) {
-              delete = new Delete(rowKey);
+
+          //we will double check source now to see if there's not already a cell for a timestamp
+          //out of the range specified in HashTable, originally
+          if (reCheckSource) {
+            Get get = new Get(rowKey);
+            get.addColumn(CellUtil.cloneFamily(targetCell),
+              CellUtil.cloneQualifier(targetCell));
+            Result r = sourceTable.get(get);
+            if(r.advance()){
+              context.getCounter(Counter.RECHECK_FOUND).increment(1);
+              Cell cell = r.current();
+              String record = Bytes.toString(rowKey) + "/" +
+                Bytes.toString(CellUtil.cloneFamily(targetCell)) + "/" +
+                Bytes.toString(CellUtil.cloneQualifier(targetCell));
+              LOG.debug("Found an old record on source for " + record);
+              LOG.debug("---> source: " + record + "/" + cell.getTimestamp() + ": "
+                + Bytes.toString(CellUtil.cloneValue(cell)));
+              LOG.debug("---> target: " + record + "/" + targetCell.getTimestamp() + ": "
+                + Bytes.toString(CellUtil.cloneValue(targetCell)));
+              LOG.debug("dryrun: " + dryRun);
+              if (!dryRun) {
+                LOG.debug("Overwriting target with the source value.");
+                if( put == null) {
+                  put = new Put(rowKey);
+                }
+                put.addColumn(CellUtil.cloneFamily(cell),
+                  CellUtil.cloneQualifier(cell),
+                  CellUtil.cloneValue(cell));
+                LOG.debug("adding put at target with value: " + Bytes.toString(CellUtil.cloneValue(cell)));
+              }
+            } else {
+              if (!dryRun) {
+                if (delete == null) {
+                  delete = new Delete(rowKey);
+                }
+                // add a tombstone to exactly match the target cell that is missing on the source
+                delete.addColumn(CellUtil.cloneFamily(targetCell),
+                  CellUtil.cloneQualifier(targetCell), targetCell.getTimestamp());
+              }
             }
-            // add a tombstone to exactly match the target cell that is missing on the source
-            delete.addColumn(CellUtil.cloneFamily(targetCell),
+          } else {
+            if (!dryRun) {
+              if (delete == null) {
+                delete = new Delete(rowKey);
+              }
+              // add a tombstone to exactly match the target cell that is missing on the source
+              delete.addColumn(CellUtil.cloneFamily(targetCell),
                 CellUtil.cloneQualifier(targetCell), targetCell.getTimestamp());
+            }
           }
           
           targetCell = targetCells.nextCellInRow();
@@ -540,9 +587,11 @@ public class SyncTable extends Configured implements Tool {
       
       if (!dryRun) {
         if (put != null) {
+          LOG.debug(">>>>>> Writing put");
           context.write(new ImmutableBytesWritable(rowKey), put);
         }
         if (delete != null) {
+          LOG.debug(">>>>>> Writing delete");
           context.write(new ImmutableBytesWritable(rowKey), delete);
         }
       }
@@ -694,6 +743,10 @@ public class SyncTable extends Configured implements Tool {
     System.err.println("                  (defaults to cluster in classpath's config)");
     System.err.println(" dryrun           if true, output counters but no writes");
     System.err.println("                  (defaults to false)");
+    System.err.println(" reCheckSource    if true, performs an extra check on source for reported");
+    System.err.println("                  missing rows on source, for potential existing entries ");
+    System.err.println("                  outside the timerange used in HashTable.");
+    System.err.println("                  (defaults to false)");
     System.err.println();
     System.err.println("Args:");
     System.err.println(" sourcehashdir    path to HashTable output dir for source table");
@@ -742,6 +795,12 @@ public class SyncTable extends Configured implements Tool {
         final String dryRunKey = "--dryrun=";
         if (cmd.startsWith(dryRunKey)) {
           dryRun = Boolean.parseBoolean(cmd.substring(dryRunKey.length()));
+          continue;
+        }
+
+        final String reCheckKey = "--reCheckSource=";
+        if (cmd.startsWith(reCheckKey)) {
+          recheckSource = Boolean.parseBoolean(cmd.substring(reCheckKey.length()));
           continue;
         }
         
