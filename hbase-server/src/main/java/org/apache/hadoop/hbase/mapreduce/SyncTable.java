@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.mapreduce;
 import java.io.IOException;
 import java.util.Iterator;
 
+import com.sun.corba.se.impl.orbutil.concurrent.Sync;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
@@ -473,7 +474,7 @@ public class SyncTable extends Configured implements Tool {
         int cellKeyComparison = compareCellKeysWithinRow(sourceCell, targetCell);
         if (cellKeyComparison < 0) {
           if (LOG.isDebugEnabled()) {
-            LOG.debug("Target missing cell: " + sourceCell);
+            LOG.debug("Target missing cell: " + SyncTable.printCell(sourceCell));
           }
           context.getCounter(Counter.TARGETMISSINGCELLS).increment(1);
           matchingRow = false;
@@ -487,9 +488,7 @@ public class SyncTable extends Configured implements Tool {
           
           sourceCell = sourceCells.nextCellInRow();
         } else if (cellKeyComparison > 0) {
-          if (LOG.isDebugEnabled()) {
-            LOG.debug("Source missing cell: " + targetCell);
-          }
+
           context.getCounter(Counter.SOURCEMISSINGCELLS).increment(1);
           matchingRow = false;
 
@@ -503,15 +502,11 @@ public class SyncTable extends Configured implements Tool {
             if(r.advance()){
               context.getCounter(Counter.RECHECK_FOUND).increment(1);
               Cell cell = r.current();
-              String record = Bytes.toString(rowKey) + "/" +
-                Bytes.toString(CellUtil.cloneFamily(targetCell)) + "/" +
-                Bytes.toString(CellUtil.cloneQualifier(targetCell));
-              LOG.debug("Found an old record on source for " + record);
-              LOG.debug("---> source: " + record + "/" + cell.getTimestamp() + ": "
-                + Bytes.toString(CellUtil.cloneValue(cell)));
-              LOG.debug("---> target: " + record + "/" + targetCell.getTimestamp() + ": "
-                + Bytes.toString(CellUtil.cloneValue(targetCell)));
-              LOG.debug("dryrun: " + dryRun);
+              LOG.debug("Old record found in source: ");
+              if (LOG.isDebugEnabled()) {
+                LOG.debug("---> source: " + SyncTable.printCell(cell));
+                LOG.debug("---> target: " + SyncTable.printCell(targetCell));
+              }
               if (!dryRun) {
                 LOG.debug("Overwriting target with the source value.");
                 if( put == null) {
@@ -520,9 +515,14 @@ public class SyncTable extends Configured implements Tool {
                 put.addColumn(CellUtil.cloneFamily(cell),
                   CellUtil.cloneQualifier(cell),
                   CellUtil.cloneValue(cell));
-                LOG.debug("adding put at target with value: " + Bytes.toString(CellUtil.cloneValue(cell)));
+                LOG.debug("adding put at target with value: "
+                  + Bytes.toString(CellUtil.cloneValue(cell)));
               }
             } else {
+              if (LOG.isDebugEnabled()) {
+                LOG.debug("Source missing cell in any time range: "
+                  + SyncTable.printCell(targetCell));
+              }
               if (!dryRun) {
                 if (delete == null) {
                   delete = new Delete(rowKey);
@@ -533,6 +533,9 @@ public class SyncTable extends Configured implements Tool {
               }
             }
           } else {
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("Source missing cell: " + SyncTable.printCell(targetCell));
+            }
             if (!dryRun) {
               if (delete == null) {
                 delete = new Delete(rowKey);
@@ -551,12 +554,8 @@ public class SyncTable extends Configured implements Tool {
           } else {
             if (LOG.isDebugEnabled()) {
               LOG.debug("Different values: ");
-              LOG.debug("  source cell: " + sourceCell
-                  + " value: " + Bytes.toHex(sourceCell.getValueArray(),
-                      sourceCell.getValueOffset(), sourceCell.getValueLength()));
-              LOG.debug("  target cell: " + targetCell
-                  + " value: " + Bytes.toHex(targetCell.getValueArray(),
-                      targetCell.getValueOffset(), targetCell.getValueLength()));
+              LOG.debug("  source cell: " + SyncTable.printCell(sourceCell));
+              LOG.debug("  target cell: " + SyncTable.printCell(targetCell));
             }
             context.getCounter(Counter.DIFFERENTCELLVALUES).increment(1);
             matchingRow = false;
@@ -725,6 +724,15 @@ public class SyncTable extends Configured implements Tool {
         finishBatchAndCompareHashes(context);
       }
     }
+  }
+
+  private static String printCell(Cell cell) {
+    return Bytes.toString(cell.getRowArray(), cell.getRowOffset(), cell.getRowLength()) + "/" +
+      Bytes.toString(cell.getFamilyArray(), cell.getFamilyOffset(), cell.getFamilyLength()) + "/" +
+      Bytes.toString(cell.getQualifierArray(),
+        cell.getQualifierOffset(), cell.getQualifierLength()) + "/" +
+      Bytes.toString(cell.getValueArray(), cell.getFamilyOffset(), cell.getFamilyLength()) +
+      cell.getTimestamp();
   }
   
   private static final int NUM_ARGS = 3;
