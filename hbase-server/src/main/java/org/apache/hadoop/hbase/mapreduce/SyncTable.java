@@ -149,7 +149,12 @@ public class SyncTable extends Configured implements Tool {
 
     jobConf.setLong("scan.end.time", tableHash.endTime);
 
-    TableMapReduceUtil.initTableMapperJob(targetTableName, tableHash.initScan(),
+    Scan scan = tableHash.initScan();
+    if (recheckSource) {
+      scan.setRaw(true);
+    }
+
+    TableMapReduceUtil.initTableMapperJob(targetTableName, scan,
         SyncMapper.class, null, null, job);
 
     job.setNumReduceTasks(0);
@@ -348,12 +353,13 @@ public class SyncTable extends Configured implements Tool {
         ImmutableBytesWritable stopRow) throws IOException, InterruptedException {
 
       Scan scan = sourceTableHash.initScan();
+      scan.setMaxVersions(1);
       scan.setStartRow(startRow.copyBytes());
       scan.setStopRow(stopRow.copyBytes());
 
       ResultScanner sourceScanner = sourceTable.getScanner(scan);
       CellScanner sourceCells = new CellScanner(sourceScanner.iterator());
-
+      scan.setRaw(true);
       ResultScanner targetScanner = targetTable.getScanner(scan);
       CellScanner targetCells = new CellScanner(targetScanner.iterator());
 
@@ -381,7 +387,7 @@ public class SyncTable extends Configured implements Tool {
                 LOG.info("Target missing row: " + Bytes.toString(nextSourceRow));
               }
               context.getCounter(Counter.TARGETMISSINGROWS).increment(1);
-              rowMatched = syncRowCells(context, nextTargetRow, EMPTY_CELL_SCANNER, targetCells);
+              rowMatched = syncRowCells(context, nextSourceRow, sourceCells, EMPTY_CELL_SCANNER);
             }
           } else {
             if (LOG.isInfoEnabled()) {
@@ -554,8 +560,8 @@ public class SyncTable extends Configured implements Tool {
           //out of the range specified in HashTable, originally
           if (reCheckSource) {
             Get get = new Get(rowKey);
-            get.addColumn(CellUtil.cloneFamily(targetCell),
-              CellUtil.cloneQualifier(targetCell));
+            get.addColumn(CellUtil.cloneFamily(sourceCell),
+              CellUtil.cloneQualifier(sourceCell));
             Result r = targetTable.get(get);
             if(r.advance()){
               Cell cell = r.current();
@@ -684,21 +690,68 @@ public class SyncTable extends Configured implements Tool {
           if (CellUtil.matchingValue(sourceCell, targetCell)) {
             matchingCells++;
           } else {
-            if (LOG.isDebugEnabled()) {
-              LOG.debug("Different values: ");
-              LOG.debug("  source cell: " + SyncTable.printCell(sourceCell));
-              LOG.debug("  target cell: " + SyncTable.printCell(targetCell));
-            }
-            context.getCounter(Counter.DIFFERENTCELLVALUES).increment(1);
-            matchingRow = false;
+            if(reCheckSource){
+              Get get = new Get(rowKey);
+              get.addColumn(CellUtil.cloneFamily(sourceCell),
+                CellUtil.cloneQualifier(sourceCell));
+              Result r = targetTable.get(get);
+              if(r.advance()) {
+                Cell cell = r.current();
+                if (!CellUtil.matchingValue(sourceCell, cell)) {
+                  matchingRow = false;
+                  context.getCounter(Counter.RECHECK_FOUND).increment(1);
+                  context.getCounter(Counter.DIFFERENTCELLVALUES).increment(1);
+                  LOG.debug("Latest cell value is different in target: ");
+                  if (LOG.isDebugEnabled()) {
+                    LOG.debug("---> source: " + SyncTable.printCell(sourceCell));
+                    LOG.debug("---> target: " + SyncTable.printCell(cell));
+                  }
+                  if (!dryRun && doPuts) {
+                    LOG.debug("Overwriting target cell with the source value.");
+                    if (put == null) {
+                      put = new Put(rowKey);
+                    }
+                    sourceCell = checkAndResetTimestamp(sourceCell);
+                    put.add(sourceCell);
 
-            if (!dryRun && doPuts) {
-             // overwrite target cell
-              if (put == null) {
-                put = new Put(rowKey);
+                    LOG.debug("adding put at target with value: " + Bytes.toString(CellUtil.cloneValue(sourceCell)));
+                  }
+                } else {
+                  matchingCells++;
+                }
+              } else {
+                matchingRow = false;
+                context.getCounter(Counter.DIFFERENTCELLVALUES).increment(1);
+                if (LOG.isDebugEnabled()) {
+                  LOG.debug("Different values: ");
+                  LOG.debug("  source cell: " + SyncTable.printCell(sourceCell));
+                  LOG.debug("  target cell: " + SyncTable.printCell(targetCell));
+                }
+                if (!dryRun && doPuts) {
+                  if (put == null) {
+                    put = new Put(rowKey);
+                  }
+                  sourceCell = checkAndResetTimestamp(sourceCell);
+                  put.add(sourceCell);
+                }
               }
-              sourceCell = checkAndResetTimestamp(sourceCell);
-              put.add(sourceCell);
+            } else {
+              if (LOG.isDebugEnabled()) {
+                LOG.debug("Different values: ");
+                LOG.debug("  source cell: " + SyncTable.printCell(sourceCell));
+                LOG.debug("  target cell: " + SyncTable.printCell(targetCell));
+              }
+              context.getCounter(Counter.DIFFERENTCELLVALUES).increment(1);
+              matchingRow = false;
+
+              if (!dryRun && doPuts) {
+                // overwrite target cell
+                if (put == null) {
+                  put = new Put(rowKey);
+                }
+                sourceCell = checkAndResetTimestamp(sourceCell);
+                put.add(sourceCell);
+              }
             }
           }
           sourceCell = sourceCells.nextCellInRow();
