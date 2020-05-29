@@ -73,6 +73,8 @@ public class SyncTable extends Configured implements Tool {
   static final String DO_PUTS_CONF_KEY = "sync.table.do.puts";
   static final String IGNORE_TIMESTAMPS = "sync.table.ignore.timestamps";
 
+  static final String TARGET_RAW_SCAN_CONF_KEY="sync.table.target.raw.scan";
+
   Path sourceHashDir;
   String sourceTableName;
   String targetTableName;
@@ -81,6 +83,7 @@ public class SyncTable extends Configured implements Tool {
   String targetZkCluster;
   boolean dryRun;
   boolean recheckSource;
+  boolean rawScan;
 
   boolean doDeletes = true;
   boolean doPuts = true;
@@ -142,6 +145,7 @@ public class SyncTable extends Configured implements Tool {
     }
     jobConf.setBoolean(DRY_RUN_CONF_KEY, dryRun);
     jobConf.setBoolean(EXTRA_CHECK_SOURCE_CONF_KEY, recheckSource);
+    jobConf.setBoolean(TARGET_RAW_SCAN_CONF_KEY, rawScan);
 
     jobConf.setBoolean(DO_DELETES_CONF_KEY, doDeletes);
     jobConf.setBoolean(DO_PUTS_CONF_KEY, doPuts);
@@ -150,7 +154,7 @@ public class SyncTable extends Configured implements Tool {
     jobConf.setLong("scan.end.time", tableHash.endTime);
 
     Scan scan = tableHash.initScan();
-    if (recheckSource) {
+    if (rawScan) {
       scan.setRaw(true);
     }
 
@@ -188,6 +192,7 @@ public class SyncTable extends Configured implements Tool {
     Table targetTable;
     boolean dryRun;
     boolean reCheckSource;
+    boolean rawScan;
 
     boolean doDeletes = true;
     boolean doPuts = true;
@@ -219,6 +224,7 @@ public class SyncTable extends Configured implements Tool {
       targetTable = openTable(targetConnection, conf, TARGET_TABLE_CONF_KEY);
       dryRun = conf.getBoolean(DRY_RUN_CONF_KEY, false);
       reCheckSource = conf.getBoolean(EXTRA_CHECK_SOURCE_CONF_KEY, false);
+      rawScan = conf.getBoolean(TARGET_RAW_SCAN_CONF_KEY, false);
 
       doDeletes = conf.getBoolean(DO_DELETES_CONF_KEY, true);
       doPuts = conf.getBoolean(DO_PUTS_CONF_KEY, true);
@@ -359,7 +365,9 @@ public class SyncTable extends Configured implements Tool {
 
       ResultScanner sourceScanner = sourceTable.getScanner(scan);
       CellScanner sourceCells = new CellScanner(sourceScanner.iterator());
-      scan.setRaw(true);
+      if(rawScan) {
+        scan.setRaw(true);
+      }
       ResultScanner targetScanner = targetTable.getScanner(scan);
       CellScanner targetCells = new CellScanner(targetScanner.iterator());
 
@@ -944,7 +952,10 @@ public class SyncTable extends Configured implements Tool {
     System.err.println(" reCheckSource    if true, performs an extra check on source for reported");
     System.err.println("                  missing rows on source, for potential existing entries ");
     System.err.println("                  outside the timerange used in HashTable.");
-    System.err.println("                  (defaults to false)");
+    System.err.println(" targetRawScan    if true, performs raw scan on target, allowing for fetch");
+    System.err.println("                  wrong deleted cells and compare against cells in source ");
+    System.err.println("                  outside the timerange used in HashTable.");
+    System.err.println("                  (defaults to false, should be used with reCheckSource)");
     System.err.println(" doDeletes        if false, does not perform deletes");
     System.err.println("                  (defaults to true)");
     System.err.println(" doPuts           if false, does not perform puts ");
@@ -1019,6 +1030,12 @@ public class SyncTable extends Configured implements Tool {
         final String reCheckKey = "--reCheckSource=";
         if (cmd.startsWith(reCheckKey)) {
           recheckSource = Boolean.parseBoolean(cmd.substring(reCheckKey.length()));
+          continue;
+        }
+
+        final String targetRawScanKey = "--targetRawScan=";
+        if (cmd.startsWith(targetRawScanKey)) {
+          rawScan = Boolean.parseBoolean(cmd.substring(targetRawScanKey.length()));
           continue;
         }
 
