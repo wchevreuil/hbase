@@ -747,22 +747,39 @@ public class FSTableDescriptors implements TableDescriptors {
    */
   public boolean createTableDescriptorForTableDirectory(Path tableDir,
       TableDescriptor htd, boolean forceCreation) throws IOException {
+    return createTableDescriptorForTableDirectory(this.fs, tableDir, htd, forceCreation);
+  }
+
+  /**
+   * Create a new TableDescriptor in HDFS in the specified table directory. Happens when we create
+   * a new table or snapshot a table.
+   * @param fileSystem Filesystem to use.
+   * @param tableDir table directory under which we should write the file
+   * @param htd description of the table to write
+   * @param forceCreation if <tt>true</tt>,then even if previous table descriptor is present it will
+   *          be overwritten
+   * @return <tt>true</tt> if the we successfully created the file, <tt>false</tt> if the file
+   *         already exists and we weren't forcing the descriptor creation.
+   * @throws IOException if a filesystem error occurs
+   */
+  public boolean createTableDescriptorForTableDirectory(FileSystem fileSystem, Path tableDir,
+      TableDescriptor htd, boolean forceCreation) throws IOException {
     if (fsreadonly) {
       throw new NotImplementedException("Cannot create a table descriptor - in read only mode");
     }
-    FileStatus status = getTableInfoPath(fs, tableDir);
+    FileStatus status = getTableInfoPath(fileSystem, tableDir);
     if (status != null) {
       LOG.debug("Current path=" + status.getPath());
       if (!forceCreation) {
-        if (fs.exists(status.getPath()) && status.getLen() > 0) {
-          if (readTableDescriptor(fs, status).equals(htd)) {
+        if (fileSystem.exists(status.getPath()) && status.getLen() > 0) {
+          if (readTableDescriptor(fileSystem, status).equals(htd)) {
             LOG.trace("TableInfo already exists.. Skipping creation");
             return false;
           }
         }
       }
     }
-    Path p = writeTableDescriptor(fs, htd, tableDir, status);
+    Path p = writeTableDescriptor(fileSystem, htd, tableDir, status);
     return p != null;
   }
 
