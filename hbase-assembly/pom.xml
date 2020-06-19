@@ -140,6 +140,7 @@
             <configuration>
               <useSubDirectoryPerArtifact>true</useSubDirectoryPerArtifact>
               <includes>**\/NOTICE,**\/NOTICE.txt</includes>
+              <excludeArtifactIds>hbase-shaded,hbase-build-configuration,hbase</excludeArtifactIds>
             </configuration>
           </execution>
           <!-- Create a mini Maven repository so that the Master UI can serve these jars like a Maven repo -->
@@ -150,12 +151,13 @@
               <goal>copy-dependencies</goal>
             </goals>
             <configuration>
-              <includeArtifactIds>hbase-shaded-client,hbase-shaded-client-byo-hadoop,hbase-shaded-mapreduce,hbase-shaded-testing-util</includeArtifactIds>
+              <includeArtifactIds>hbase-shaded-client,hbase-shaded-client-byo-hadoop,hbase-shaded-mapreduce,hbase-shaded-testing-util,hbase-shaded,log4j,hbase-build-configuration,hbase</includeArtifactIds>
               <outputDirectory>${project.build.directory}/maven</outputDirectory>
               <overWriteIfNewer>true</overWriteIfNewer>
               <useRepositoryLayout>true</useRepositoryLayout>
+              <copyPom>true</copyPom>
             </configuration>
-           </execution>
+          </execution>
         </executions>
       </plugin>
       <plugin>
@@ -189,6 +191,21 @@
   </build>
   <dependencies>
     <!-- client artifacts for downstream use -->
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase</artifactId>
+      <type>pom</type>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-build-configuration</artifactId>
+      <type>pom</type>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.hbase</groupId>
+      <artifactId>hbase-shaded</artifactId>
+      <type>pom</type>
+    </dependency>
     <dependency>
       <groupId>org.apache.hbase</groupId>
       <artifactId>hbase-shaded-client</artifactId>
