@@ -57,6 +57,12 @@
         <include>org.apache.hbase:hbase-thrift</include>
         <include>org.apache.hbase:hbase-zookeeper</include>
       </includes>
+      <!-- Remove the pom-only dependencies needed for the maven repo -->
+      <excludes>
+        <exclude>org.apache.hbase:hbase</exclude>
+        <exclude>org.apache.hbase:hbase-build-configuration</exclude>
+        <exclude>org.apache.hbase:hbase-shaded</exclude>
+      </excludes>
       <!-- Binaries for the dependencies also go in the hbase-jars directory -->
       <binaries>
         <outputDirectory>lib</outputDirectory>
