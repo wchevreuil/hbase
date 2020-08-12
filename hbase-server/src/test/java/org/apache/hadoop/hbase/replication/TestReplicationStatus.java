@@ -21,19 +21,24 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
+
+import org.apache.hadoop.hbase.ClusterMetrics;
 import org.apache.hadoop.hbase.ClusterMetrics.Option;
 import org.apache.hadoop.hbase.ClusterStatus;
 import org.apache.hadoop.hbase.HBaseClassTestRule;
-import org.apache.hadoop.hbase.ServerLoad;
+import org.apache.hadoop.hbase.ServerMetrics;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.client.Admin;
 import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.testclassification.MediumTests;
 import org.apache.hadoop.hbase.testclassification.ReplicationTests;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.hbase.util.JVMClusterUtil;
+import org.apache.hadoop.hbase.util.Threads;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -46,13 +51,20 @@ import org.slf4j.LoggerFactory;
 
 @Category({ReplicationTests.class, MediumTests.class})
 public class TestReplicationStatus extends TestReplicationBase {
+  private static final Logger LOG = LoggerFactory.getLogger(TestReplicationStatus.class);
 
   @ClassRule
   public static final HBaseClassTestRule CLASS_RULE =
       HBaseClassTestRule.forClass(TestReplicationStatus.class);
 
-  private static final Logger LOG = LoggerFactory.getLogger(TestReplicationStatus.class);
-  private static final String PEER_ID = "2";
+  static void insertRowsOnSource() throws IOException {
+    final byte[] qualName = Bytes.toBytes("q");
+    for (int i = 0; i < NB_ROWS_IN_BATCH; i++) {
+      Put p = new Put(Bytes.toBytes("row" + i));
+      p.addColumn(famName, qualName, Bytes.toBytes("val" + i));
+      htable1.put(p);
+    }
+  }
 
   /**
    * Test for HBASE-9531
@@ -65,55 +77,56 @@ public class TestReplicationStatus extends TestReplicationBase {
   @Test
   public void testReplicationStatus() throws Exception {
     LOG.info("testReplicationStatus");
-    utility2.shutdownMiniHBaseCluster();
-    utility2.startMiniHBaseCluster(1,4);
-    try (Admin hbaseAdmin = utility1.getConnection().getAdmin()) {
+    UTIL2.shutdownMiniHBaseCluster();
+    UTIL2.startMiniHBaseCluster(1,4);
+    try (Admin hbaseAdmin = UTIL1.getAdmin()) {
       // disable peer
-      admin.disablePeer(PEER_ID);
-
-      final byte[] qualName = Bytes.toBytes("q");
-      Put p;
-
-      for (int i = 0; i < NB_ROWS_IN_BATCH; i++) {
-        p = new Put(Bytes.toBytes("row" + i));
-        p.addColumn(famName, qualName, Bytes.toBytes("val" + i));
-        htable1.put(p);
-      }
-
-      ClusterStatus status = new ClusterStatus(hbaseAdmin.getClusterMetrics(
-        EnumSet.of(Option.LIVE_SERVERS)));
-
-      for (JVMClusterUtil.RegionServerThread thread : utility1.getHBaseCluster()
-          .getRegionServerThreads()) {
+      hbaseAdmin.disableReplicationPeer(PEER_ID2);
+      insertRowsOnSource();
+      LOG.info("AFTER PUTS");
+      // TODO: Change this wait to a barrier. I tried waiting on replication stats to
+      // change but sleeping in main thread seems to mess up background replication.
+      // HACK! To address flakeyness.
+      Threads.sleep(10000);
+      ClusterMetrics metrics = hbaseAdmin.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS));
+      for (JVMClusterUtil.RegionServerThread thread : UTIL1.getHBaseCluster().
+          getRegionServerThreads()) {
         ServerName server = thread.getRegionServer().getServerName();
-        ServerLoad sl = status.getLoad(server);
-        List<ReplicationLoadSource> rLoadSourceList = sl.getReplicationLoadSourceList();
-        ReplicationLoadSink rLoadSink = sl.getReplicationLoadSink();
+        assertTrue("" + server, metrics.getLiveServerMetrics().containsKey(server));
+        ServerMetrics sm = metrics.getLiveServerMetrics().get(server);
+        List<ReplicationLoadSource> rLoadSourceList = sm.getReplicationLoadSourceList();
+        ReplicationLoadSink rLoadSink = sm.getReplicationLoadSink();
 
-        // check SourceList only has one entry, beacuse only has one peer
-        assertTrue("failed to get ReplicationLoadSourceList", (rLoadSourceList.size() == 1));
-        assertEquals(PEER_ID, rLoadSourceList.get(0).getPeerID());
+        // check SourceList only has one entry, because only has one peer
+        assertEquals("Failed to get ReplicationLoadSourceList " +
+            rLoadSourceList + ", " + server,1, rLoadSourceList.size());
+        assertEquals(PEER_ID2, rLoadSourceList.get(0).getPeerID());
 
         // check Sink exist only as it is difficult to verify the value on the fly
         assertTrue("failed to get ReplicationLoadSink.AgeOfLastShippedOp ",
-          (rLoadSink.getAgeOfLastAppliedOp() >= 0));
+            (rLoadSink.getAgeOfLastAppliedOp() >= 0));
         assertTrue("failed to get ReplicationLoadSink.TimeStampsOfLastAppliedOp ",
-          (rLoadSink.getTimestampsOfLastAppliedOp() >= 0));
+            (rLoadSink.getTimestampsOfLastAppliedOp() >= 0));
       }
 
       // Stop rs1, then the queue of rs1 will be transfered to rs0
-      utility1.getHBaseCluster().getRegionServer(1).stop("Stop RegionServer");
-      Thread.sleep(10000);
-      status = new ClusterStatus(hbaseAdmin.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS)));
-      ServerName server = utility1.getHBaseCluster().getRegionServer(0).getServerName();
-      ServerLoad sl = status.getLoad(server);
-      List<ReplicationLoadSource> rLoadSourceList = sl.getReplicationLoadSourceList();
-      // check SourceList still only has one entry
-      assertTrue("failed to get ReplicationLoadSourceList", (rLoadSourceList.size() == 2));
-      assertEquals(PEER_ID, rLoadSourceList.get(0).getPeerID());
+      HRegionServer hrs = UTIL1.getHBaseCluster().getRegionServer(1);
+      hrs.stop("Stop RegionServer");
+      while(!hrs.isShutDown()) {
+        Threads.sleep(100);
+      }
+      // To be sure it dead and references cleaned up. TODO: Change this to a barrier.
+      // I tried waiting on replication stats to change but sleeping in main thread
+      // seems to mess up background replication.
+      Threads.sleep(10000);
+      ServerName server = UTIL1.getHBaseCluster().getRegionServer(0).getServerName();
+      List<ReplicationLoadSource> rLoadSourceList = waitOnMetricsReport(1, server);
+      assertEquals("Failed ReplicationLoadSourceList " + rLoadSourceList, 2,
+          rLoadSourceList.size());
+      assertEquals(PEER_ID2, rLoadSourceList.get(0).getPeerID());
     } finally {
-      admin.enablePeer(PEER_ID);
-      utility1.getHBaseCluster().getRegionServer(1).start();
+      hbaseAdmin.enableReplicationPeer(PEER_ID2);
+      UTIL1.getHBaseCluster().getRegionServer(1).start();
     }
   }
 
@@ -122,7 +135,7 @@ public class TestReplicationStatus extends TestReplicationBase {
     //we need to perform initialisations from TestReplicationBase.setUpBeforeClass() on each
     //test here, so we override BeforeClass to do nothing and call
     // TestReplicationBase.setUpBeforeClass() from setup method
-    TestReplicationBase.configureClusters();
+    TestReplicationBase.configureClusters(UTIL1, UTIL2);
   }
 
   @Before
@@ -135,8 +148,8 @@ public class TestReplicationStatus extends TestReplicationBase {
   @After
   @Override
   public void tearDownBase() throws Exception {
-    utility2.shutdownMiniCluster();
-    utility1.shutdownMiniCluster();
+    UTIL2.shutdownMiniCluster();
+    UTIL1.shutdownMiniCluster();
   }
 
   @AfterClass
@@ -146,11 +159,11 @@ public class TestReplicationStatus extends TestReplicationBase {
 
   @Test
   public void testReplicationStatusSourceStartedTargetStoppedNoOps() throws Exception {
-    utility2.shutdownMiniHBaseCluster();
-    utility1.shutdownMiniHBaseCluster();
-    utility1.startMiniHBaseCluster();
-    Admin hbaseAdmin = utility1.getConnection().getAdmin();
-    ServerName serverName = utility1.getHBaseCluster().
+    UTIL2.shutdownMiniHBaseCluster();
+    UTIL1.shutdownMiniHBaseCluster();
+    UTIL1.startMiniHBaseCluster();
+    Admin hbaseAdmin = UTIL1.getConnection().getAdmin();
+    ServerName serverName = UTIL1.getHBaseCluster().
         getRegionServer(0).getServerName();
     Thread.sleep(10000);
     ClusterStatus status = new ClusterStatus(hbaseAdmin.
@@ -167,10 +180,10 @@ public class TestReplicationStatus extends TestReplicationBase {
 
   @Test
   public void testReplicationStatusSourceStartedTargetStoppedNewOp() throws Exception {
-    utility2.shutdownMiniHBaseCluster();
-    utility1.shutdownMiniHBaseCluster();
-    utility1.startMiniHBaseCluster();
-    Admin hbaseAdmin = utility1.getConnection().getAdmin();
+    UTIL2.shutdownMiniHBaseCluster();
+    UTIL1.shutdownMiniHBaseCluster();
+    UTIL1.startMiniHBaseCluster();
+    Admin hbaseAdmin = UTIL1.getConnection().getAdmin();
     //add some values to source cluster
     for (int i = 0; i < NB_ROWS_IN_BATCH; i++) {
       Put p = new Put(Bytes.toBytes("row" + i));
@@ -178,7 +191,7 @@ public class TestReplicationStatus extends TestReplicationBase {
       htable1.put(p);
     }
     Thread.sleep(10000);
-    ServerName serverName = utility1.getHBaseCluster().
+    ServerName serverName = UTIL1.getHBaseCluster().
         getRegionServer(0).getServerName();
     ClusterStatus status = new ClusterStatus(hbaseAdmin.
         getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS)));
@@ -194,9 +207,9 @@ public class TestReplicationStatus extends TestReplicationBase {
 
   @Test
   public void testReplicationStatusSourceStartedTargetStoppedWithRecovery() throws Exception {
-    utility2.shutdownMiniHBaseCluster();
-    utility1.shutdownMiniHBaseCluster();
-    utility1.startMiniHBaseCluster();
+    UTIL2.shutdownMiniHBaseCluster();
+    UTIL1.shutdownMiniHBaseCluster();
+    UTIL1.startMiniHBaseCluster();
     //add some values to cluster 1
     for (int i = 0; i < NB_ROWS_IN_BATCH; i++) {
       Put p = new Put(Bytes.toBytes("row" + i));
@@ -204,10 +217,10 @@ public class TestReplicationStatus extends TestReplicationBase {
       htable1.put(p);
     }
     Thread.sleep(10000);
-    utility1.shutdownMiniHBaseCluster();
-    utility1.startMiniHBaseCluster();
-    Admin hbaseAdmin = utility1.getConnection().getAdmin();
-    ServerName serverName = utility1.getHBaseCluster().
+    UTIL1.shutdownMiniHBaseCluster();
+    UTIL1.startMiniHBaseCluster();
+    Admin hbaseAdmin = UTIL1.getConnection().getAdmin();
+    ServerName serverName = UTIL1.getHBaseCluster().
         getRegionServer(0).getServerName();
     Thread.sleep(10000);
     ClusterStatus status = new ClusterStatus(hbaseAdmin.
@@ -236,9 +249,9 @@ public class TestReplicationStatus extends TestReplicationBase {
 
   @Test
   public void testReplicationStatusBothNormalAndRecoveryLagging() throws Exception {
-    utility2.shutdownMiniHBaseCluster();
-    utility1.shutdownMiniHBaseCluster();
-    utility1.startMiniHBaseCluster();
+    UTIL2.shutdownMiniHBaseCluster();
+    UTIL1.shutdownMiniHBaseCluster();
+    UTIL1.startMiniHBaseCluster();
     //add some values to cluster 1
     for (int i = 0; i < NB_ROWS_IN_BATCH; i++) {
       Put p = new Put(Bytes.toBytes("row" + i));
@@ -246,10 +259,10 @@ public class TestReplicationStatus extends TestReplicationBase {
       htable1.put(p);
     }
     Thread.sleep(10000);
-    utility1.shutdownMiniHBaseCluster();
-    utility1.startMiniHBaseCluster();
-    Admin hbaseAdmin = utility1.getConnection().getAdmin();
-    ServerName serverName = utility1.getHBaseCluster().
+    UTIL1.shutdownMiniHBaseCluster();
+    UTIL1.startMiniHBaseCluster();
+    Admin hbaseAdmin = UTIL1.getConnection().getAdmin();
+    ServerName serverName = UTIL1.getHBaseCluster().
         getRegionServer(0).getServerName();
     Thread.sleep(10000);
     //add more values to cluster 1, these should cause normal queue to lag
@@ -282,19 +295,19 @@ public class TestReplicationStatus extends TestReplicationBase {
 
   @Test
   public void testReplicationStatusAfterLagging() throws Exception {
-    utility2.shutdownMiniHBaseCluster();
-    utility1.shutdownMiniHBaseCluster();
-    utility1.startMiniHBaseCluster();
+    UTIL2.shutdownMiniHBaseCluster();
+    UTIL1.shutdownMiniHBaseCluster();
+    UTIL1.startMiniHBaseCluster();
     //add some values to cluster 1
     for (int i = 0; i < NB_ROWS_IN_BATCH; i++) {
       Put p = new Put(Bytes.toBytes("row" + i));
       p.addColumn(famName, Bytes.toBytes("col1"), Bytes.toBytes("val" + i));
       htable1.put(p);
     }
-    utility2.startMiniHBaseCluster();
+    UTIL2.startMiniHBaseCluster();
     Thread.sleep(10000);
-    try(Admin hbaseAdmin = utility1.getConnection().getAdmin()) {
-      ServerName serverName = utility1.getHBaseCluster().getRegionServer(0).
+    try(Admin hbaseAdmin = UTIL1.getConnection().getAdmin()) {
+      ServerName serverName = UTIL1.getHBaseCluster().getRegionServer(0).
           getServerName();
       ClusterStatus status =
           new ClusterStatus(hbaseAdmin.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS)));
@@ -306,7 +319,25 @@ public class TestReplicationStatus extends TestReplicationBase {
       assertTrue(loadSource.getTimestampOfLastShippedOp() > 0);
       assertEquals(0, loadSource.getReplicationLag());
     }finally{
-      utility2.shutdownMiniHBaseCluster();
+      UTIL2.shutdownMiniHBaseCluster();
     }
+  }
+
+  /**
+   * Wait until Master shows metrics counts for ReplicationLoadSourceList that are
+   * greater than <code>greaterThan</code> for <code>serverName</code> before
+   * returning. We want to avoid case where RS hasn't yet updated Master before
+   * allowing test proceed.
+   * @param greaterThan size of replicationLoadSourceList must be greater before we proceed
+   */
+  private List<ReplicationLoadSource> waitOnMetricsReport(int greaterThan, ServerName serverName)
+      throws IOException {
+    ClusterMetrics metrics = hbaseAdmin.getClusterMetrics(EnumSet.of(Option.LIVE_SERVERS));
+    List<ReplicationLoadSource> list =
+        metrics.getLiveServerMetrics().get(serverName).getReplicationLoadSourceList();
+    while(list.size() < greaterThan) {
+      Threads.sleep(1000);
+    }
+    return list;
   }
 }
