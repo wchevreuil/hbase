@@ -410,17 +410,16 @@ public class ReplicationSourceManager implements ReplicationListener {
         }
       }
       for (String queueId : previousQueueIds) {
-        ReplicationSourceInterface replicationSource = createSource(queueId, peer);
-        this.oldsources.add(replicationSource);
-        LOG.trace("Added source for recovered queue: " + src.getQueueId());
+        ReplicationSourceInterface recoveredReplicationSource = createSource(queueId, peer);
+        this.oldsources.add(recoveredReplicationSource);
         for (SortedSet<String> walsByGroup : walsByIdRecoveredQueues.get(queueId).values()) {
           walsByGroup.forEach(wal -> {
             LOG.trace("Enqueueing log from recovered queue for source: {}",
               src.getQueueId());
-            src.enqueueLog(new Path(wal));
+            recoveredReplicationSource.enqueueLog(new Path(wal));
           });
         }
-        toStartup.add(replicationSource);
+        toStartup.add(recoveredReplicationSource);
       }
     }
     for (ReplicationSourceInterface replicationSource : toStartup) {
@@ -627,8 +626,6 @@ public class ReplicationSourceManager implements ReplicationListener {
     // This only updates the sources we own, not the recovered ones
     for (ReplicationSourceInterface source : this.sources.values()) {
       source.enqueueLog(newLog);
-      LOG.trace("Enqueued {} to source {} while performing postLogRoll operation.",
-          newLog, source.getQueueId());
     }
   }
 
