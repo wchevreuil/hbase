@@ -196,7 +196,7 @@ public class ReplicationSourceShipper extends Thread {
         // Clean up hfile references
         for (Entry entry : entries) {
           cleanUpHFileRefs(entry.getEdit());
-          LOG.trace("shipped entry {}: ", entry);
+
           TableName tableName = entry.getKey().getTableName();
           source.getSourceMetrics().setAgeOfLastShippedOpByTable(entry.getKey().getWriteTime(),
               tableName.getNameAsString());
