@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.security.token;
 
 import java.io.IOException;
 
+import org.apache.hadoop.io.Text;
 import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.yetus.audience.InterfaceStability;
 import org.slf4j.Logger;
@@ -37,6 +38,7 @@ import org.apache.hadoop.security.token.Token;
 @InterfaceStability.Evolving
 public class FsDelegationToken {
   private static final Logger LOG = LoggerFactory.getLogger(FsDelegationToken.class);
+  private static final Text S3A_TOKEN_TEXT = new Text("S3ADelegationToken/IDBroker");
 
   private final UserProvider userProvider;
   private final String renewer;
@@ -86,7 +88,7 @@ public class FsDelegationToken {
    */
   public void releaseDelegationToken() {
     if (userProvider.isHadoopSecurityEnabled()) {
-      if (userToken != null && !hasForwardedToken) {
+      if (userToken != null && !hasForwardedToken && !S3A_TOKEN_TEXT.equals(userToken.getKind())) {
         try {
           userToken.cancel(this.fs.getConf());
         } catch (Exception e) {
