@@ -18,7 +18,7 @@
 #
 
 require 'hbase_constants'
-require 'shell'
+require 'hbase_shell'
 
 include HBaseConstants
 

@@ -15,7 +15,7 @@
 # limitations under the License.
 #
 
-require 'shell'
+require 'hbase_shell'
 require 'hbase_constants'
 
 include HBaseConstants
