@@ -98,7 +98,7 @@ public abstract class AbstractRpcClient<T extends RpcConnection> implements RpcC
   private static final ScheduledExecutorService IDLE_CONN_SWEEPER = Executors
       .newScheduledThreadPool(1, Threads.newDaemonThreadFactory("Idle-Rpc-Conn-Sweeper"));
 
-  protected boolean running = true; // if client runs
+  private boolean running = true; // if client runs
 
   protected final Configuration conf;
   protected final String clusterId;
@@ -124,7 +124,7 @@ public abstract class AbstractRpcClient<T extends RpcConnection> implements RpcC
   protected final int readTO;
   protected final int writeTO;
 
-  protected final PoolMap<ConnectionId, T> connections;
+  private final PoolMap<ConnectionId, T> connections;
 
   private final AtomicInteger callIdCnt = new AtomicInteger(0);
 
@@ -203,8 +203,10 @@ public abstract class AbstractRpcClient<T extends RpcConnection> implements RpcC
         // have some pending calls on connection so we should not shutdown the connection outside.
         // The connection itself will disconnect if there is no pending call for maxIdleTime.
         if (conn.getLastTouched() < closeBeforeTime && !conn.isActive()) {
-          if (LOG.isTraceEnabled()) LOG.trace("Cleanup idle connection to " + conn.remoteId().address);
-          connections.removeValue(conn.remoteId(), conn);
+          if (LOG.isTraceEnabled()) {
+            LOG.trace("Cleanup idle connection to {}", conn.remoteId().address);
+          }
+          connections.remove(conn.remoteId(), conn);
           conn.cleanupConnection();
         }
       }
@@ -289,7 +291,14 @@ public abstract class AbstractRpcClient<T extends RpcConnection> implements RpcC
    * @return the maximum pool size
    */
   private static int getPoolSize(Configuration config) {
-    return config.getInt(HConstants.HBASE_CLIENT_IPC_POOL_SIZE, 1);
+    int poolSize = config.getInt(HConstants.HBASE_CLIENT_IPC_POOL_SIZE, 1);
+
+    if (poolSize <= 0) {
+      LOG.warn("{} must be positive. Using default value: 1", HConstants.HBASE_CLIENT_IPC_POOL_SIZE);
+      return 1;
+    } else {
+      return poolSize;
+    }
   }
 
   private int nextCallId() {
@@ -345,11 +354,7 @@ public abstract class AbstractRpcClient<T extends RpcConnection> implements RpcC
       if (!running) {
         throw new StoppedRpcClientException();
       }
-      conn = connections.get(remoteId);
-      if (conn == null) {
-        conn = createConnection(remoteId);
-        connections.put(remoteId, conn);
-      }
+      conn = connections.getOrCreate(remoteId, () -> createConnection(remoteId));
       conn.setLastTouched(EnvironmentEdgeManager.currentTime());
     }
     return conn;
@@ -447,7 +452,7 @@ public abstract class AbstractRpcClient<T extends RpcConnection> implements RpcC
             && remoteId.address.getHostName().equals(sn.getHostname())) {
           LOG.info("The server on " + sn.toString() + " is dead - stopping the connection "
               + connection.remoteId);
-          connections.removeValue(remoteId, connection);
+          connections.remove(remoteId, connection);
           connection.shutdown();
           connection.cleanupConnection();
         }
