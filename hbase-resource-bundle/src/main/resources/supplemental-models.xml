@@ -2124,7 +2124,21 @@ Copyright 2010 FasterXML.com
       </licenses>
     </project>
   </supplement>
-
+  <supplement>
+    <project>
+      <groupId>org.scala-lang</groupId>
+      <artifactId>scala-library</artifactId>
+      <name>Scala Library</name>
+      <version>2.11.12</version>
+      <licenses>
+        <license>
+          <name>BSD 3-Clause License</name>
+          <url>http://www.scala-lang.org/license.html</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+    </project>
+  </supplement>
   <supplement>
     <project>
       <groupId>org.jruby.jcodings</groupId>
@@ -3128,4 +3142,42 @@ Copyright (c) 2007-2017 The JRuby project
       </licenses>
      </project>
    </supplement>
+  <supplement>
+    <project>
+      <groupId>com.google.code.javaparser</groupId>
+      <artifactId>javaparser</artifactId>
+      <version>1.0.10</version>
+
+      <organization>
+        <name>The Apache Software Foundation</name>
+        <url>http://www.apache.org/</url>
+      </organization>
+      <licenses>
+        <license>
+          <name>Apache License, Version 2.0</name>
+          <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+     </project>
+   </supplement>
+   <supplement>
+    <project>
+      <groupId>net.sourceforge.collections</groupId>
+      <artifactId>collections-generic</artifactId>
+      <version>4.01</version>
+
+      <organization>
+        <name>The Apache Software Foundation</name>
+        <url>http://www.apache.org/</url>
+      </organization>
+      <licenses>
+        <license>
+          <name>Apache License, Version 2.0</name>
+          <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+          <distribution>repo</distribution>
+        </license>
+      </licenses>
+    </project>
+  </supplement>
 </supplementalDataModels>
