@@ -2801,6 +2801,10 @@
                 <groupId>com.google.code.findbugs</groupId>
                 <artifactId>jsr305</artifactId>
               </exclusion>
+              <exclusion>
+                <groupId>com.google.code.findbugs</groupId>
+                <artifactId>annotations</artifactId>
+              </exclusion>
             </exclusions>
           </dependency>
           <dependency>
@@ -3153,6 +3157,10 @@
                <groupId>com.google.code.findbugs</groupId>
                <artifactId>jsr305</artifactId>
              </exclusion>
+              <exclusion>
+                <groupId>com.google.code.findbugs</groupId>
+                <artifactId>annotations</artifactId>
+              </exclusion>
            </exclusions>
          </dependency>
          <dependency>
