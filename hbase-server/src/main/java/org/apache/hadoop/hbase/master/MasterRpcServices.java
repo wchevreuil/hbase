@@ -2328,6 +2328,7 @@ public class MasterRpcServices extends RSRpcServices
   @Override
   public GetTableStateResponse setTableStateInMeta(RpcController controller,
       SetTableStateInMetaRequest request) throws ServiceException {
+    rpcPreCheck("setTableStateInMeta");
     TableName tn = ProtobufUtil.toTableName(request.getTableName());
     try {
       TableState prevState = this.master.getTableStateManager().getTableState(tn);
@@ -2476,6 +2477,7 @@ public class MasterRpcServices extends RSRpcServices
   @Override
   public FixMetaResponse fixMeta(RpcController controller, FixMetaRequest request)
       throws ServiceException {
+    rpcPreCheck("fixMeta");
     try {
       MetaFixer mf = new MetaFixer(this.master);
       mf.fix();
