@@ -254,4 +254,118 @@ public class TestColumnFamilyDescriptorBuilder {
     builder.setValue(isMob, Bytes.toBytes("unknown"));
     Assert.assertFalse(builder.build().isMobEnabled());
   }
+
+  /**
+   * See CDPD-21045. Under C5 and HDP2.6 we stored MOB_THRESHOLD as a long, under later versions it
+   * is a string of the number.
+   */
+  @Test
+  public void testMobThreshold() {
+    ColumnFamilyDescriptorBuilder builder
+        = ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes("mob"));
+    byte[] threshold = Bytes.toBytes(ColumnFamilyDescriptorBuilder.MOB_THRESHOLD);
+
+    // unambiguous shorter than long
+    builder.setValue(threshold, Bytes.toBytes("100000"));
+    Assert.assertEquals("string that is unambiguous due to length parsed incorrectly.", 100000l,
+        builder.build().getMobThreshold());
+
+    // unambiguous longer than long
+    builder.setValue(threshold, Bytes.toBytes("100000000"));
+    Assert.assertEquals("string that is unambiguous due to length parsed incorrectly.",
+        100000000l, builder.build().getMobThreshold());
+
+    // ambiguous strings
+    builder.setValue(threshold, Bytes.toBytes("10000000"));
+    Assert.assertEquals("string that is ambiguous length parsed incorrectly.",
+        10000000l, builder.build().getMobThreshold());
+
+    // long w/only invalid character sequences (this is the invalid byte 0xC0 repeated)
+    // the default replacement character '0xfffd' isn't a digit so it should fail to parse and
+    // get handled as a serialized long.
+    builder.setValue(threshold, Bytes.toBytes(0xC0C0C0C0C0C0C0C0l));
+    Assert.assertEquals("long that does not parse as a string of numbers parsed incorrectly.",
+        0xC0C0C0C0C0C0C0C0l, builder.build().getMobThreshold());
+
+    // long w/some digit string bytes and some non-digit string bytes
+    builder.setValue(threshold, Bytes.toBytes(0x303030l));
+    Assert.assertEquals("long that does not parse as a string of numbers parsed incorrectly.",
+        0x303030l, builder.build().getMobThreshold());
+
+    // long w/only non-digit string representation
+    builder.setValue(threshold, Bytes.toBytes(102400l));
+    Assert.assertEquals("long that does not parse as a string of numbers parsed incorrectly.",
+        102400l, builder.build().getMobThreshold());
+
+    // ambiguous long that ends up a string
+    builder.setValue(threshold, Bytes.toBytes(0x3030303030323030l));
+    Assert.assertEquals("long that can parse as a string of numbers parsed incorrectly.",
+        200l, builder.build().getMobThreshold());
+    builder.setValue(threshold, Bytes.toBytes(0x2D30303030303031l));
+    Assert.assertEquals("long that can parse as a string of numbers parsed incorrectly.",
+        -1l, builder.build().getMobThreshold());
+
+    // incorrect string that ends up a long
+    builder.setValue(threshold, Bytes.toBytes("DEADBEEF"));
+    Assert.assertEquals("string that is not a number parsed incorrectly.",
+        0x4445414442454546l, builder.build().getMobThreshold());
+
+    // incorrect strings that look plausible that end up a long
+    builder.setValue(threshold, Bytes.toBytes("0x100000"));
+    Assert.assertEquals("string that is hex instead of decimal parsed incorrectly.",
+        0x3078313030303030l, builder.build().getMobThreshold());
+
+    builder.setValue(threshold, Bytes.toBytes("100,000l"));
+    Assert.assertEquals("string with commas and text parsed incorrectly.",
+        0x3130302C3030306Cl, builder.build().getMobThreshold());
+
+    builder.setValue(threshold, Bytes.toBytes("100,000 "));
+    Assert.assertEquals("string with comma and space parsed incorrectly.",
+        0x3130302C30303020l, builder.build().getMobThreshold());
+
+    builder.setValue(threshold, Bytes.toBytes(" 100000 "));
+    Assert.assertEquals("string with buffer whitespace parsed incorrectly.",
+        0x2031303030303020l, builder.build().getMobThreshold());
+
+    builder.setValue(threshold, Bytes.toBytes("1,000.00"));
+    Assert.assertEquals("string with comma parsed incorrectly.",
+        0x312C3030302E3030l, builder.build().getMobThreshold());
+
+    builder.setValue(threshold, Bytes.toBytes("10000.00"));
+    Assert.assertEquals("string with decimal place parsed incorrectly.",
+        0x31303030302E3030l, builder.build().getMobThreshold());
+  }
+
+  @Test(expected=NumberFormatException.class)
+  public void testMobThresholdStillRejectsNonNumbers() {
+    ColumnFamilyDescriptorBuilder builder
+        = ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes("mob"));
+    byte[] threshold = Bytes.toBytes(ColumnFamilyDescriptorBuilder.MOB_THRESHOLD);
+
+    builder.setValue(threshold, Bytes.toBytes("some string that is not eight bytes"));
+    builder.build().getMobThreshold();
+
+  }
+
+  @Test(expected=NumberFormatException.class)
+  public void testMobthresholdStillRejectsMixed() {
+    ColumnFamilyDescriptorBuilder builder
+        = ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes("mob"));
+    byte[] threshold = Bytes.toBytes(ColumnFamilyDescriptorBuilder.MOB_THRESHOLD);
+
+    builder.setValue(threshold, Bytes.toBytes("1234five!"));
+    builder.build().getMobThreshold();
+
+  }
+
+  @Test(expected=NumberFormatException.class)
+  public void testMobthresholdStillRejectsCommasMostly() {
+    ColumnFamilyDescriptorBuilder builder
+        = ColumnFamilyDescriptorBuilder.newBuilder(Bytes.toBytes("mob"));
+    byte[] threshold = Bytes.toBytes(ColumnFamilyDescriptorBuilder.MOB_THRESHOLD);
+
+    builder.setValue(threshold, Bytes.toBytes("1,000,000"));
+    builder.build().getMobThreshold();
+
+  }
 }

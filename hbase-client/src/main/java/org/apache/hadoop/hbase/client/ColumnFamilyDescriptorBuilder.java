@@ -42,11 +42,16 @@ import org.apache.hbase.thirdparty.com.google.common.base.Preconditions;
 import org.apache.hadoop.hbase.shaded.protobuf.ProtobufUtil;
 import org.apache.hadoop.hbase.shaded.protobuf.generated.HBaseProtos.ColumnFamilySchema;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 /**
  * @since 2.0.0
  */
 @InterfaceAudience.Public
 public class ColumnFamilyDescriptorBuilder {
+
+  private static final Logger LOG = LoggerFactory.getLogger(ColumnFamilyDescriptorBuilder.class);
   // For future backward compatibility
 
   // Version  3 was when column names become byte arrays and when we picked up
@@ -1082,7 +1087,16 @@ public class ColumnFamilyDescriptorBuilder {
           continue;
         }
         String key = Bytes.toString(entry.getKey().get());
-        String value = Bytes.toStringBinary(entry.getValue().get());
+        String value;
+        // see CDPD-17676 and CDPD-21045, for MOB configs go through
+        // the accessor since those might not be strings.
+        if (IS_MOB.equals(key)) {
+          value = String.valueOf(isMobEnabled());
+        } else if (MOB_THRESHOLD.equals(key)) {
+          value = String.valueOf(getMobThreshold());
+        } else {
+          value = Bytes.toStringBinary(entry.getValue().get());
+        }
         if (printDefaults
                 || !DEFAULT_VALUES.containsKey(key)
                 || !DEFAULT_VALUES.get(key).equalsIgnoreCase(value)) {
@@ -1265,7 +1279,39 @@ public class ColumnFamilyDescriptorBuilder {
 
     @Override
     public long getMobThreshold() {
-      return getStringOrDefault(MOB_THRESHOLD_BYTES, Long::valueOf, DEFAULT_MOB_THRESHOLD);
+      return getOrDefault(MOB_THRESHOLD_BYTES, (value) -> {
+        // See CDPD-21045. Under C5 and HDP2.6 we stored MOB_THRESHOLD_BYTES as a long,
+        // in C6/HDP3/CDP it became a string of the number. Unfortunately, there are a set
+        // of values where it is not possible to tell which the original was. See the tests for
+        // some examples. If we might be in that situation, we will assume the current format is
+        // in use and log some DEBUG details in the hopes that someone who notices something amiss
+        // will get enough of a nudge in the right direction to fix things.
+        boolean mightBeLong = value.length == Bytes.SIZEOF_LONG;
+        long result;
+        try {
+          result = Long.valueOf(Bytes.toString(value));
+          if (mightBeLong && LOG.isDebugEnabled()) {
+            LOG.debug("cf {} setting MOB_THRESHOLD of {} was parsed from a string after " +
+                "conversion from a byte array that was the same size as the C5/HDP2.6 " +
+                "serialization format. In that format the value would have been {}. If things " +
+                "look incorrect then please set MOB_THRESHOLD again via hbase-shell.",
+                getNameAsString(), result, Bytes.toLong(value));
+          }
+        } catch (NumberFormatException exception) {
+          if (mightBeLong) {
+            result = Bytes.toLong(value);
+            if (LOG.isDebugEnabled()) {
+              LOG.debug("cf {} setting MOB_THRESHOLD of {} was parsed using the C5/HDP2.6 config " +
+                  "serialization format. If this looks incorrect it could have come from an " +
+                  "incorrectly formatted string value. Please set MOB_THRESHOLD again via " +
+                  "hbase-shell.", getNameAsString(), result);
+            }
+          } else {
+            throw exception;
+          }
+        }
+        return result;
+      }, DEFAULT_MOB_THRESHOLD);
     }
 
     /**
