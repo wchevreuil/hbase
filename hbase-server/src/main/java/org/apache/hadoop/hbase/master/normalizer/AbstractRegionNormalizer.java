@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Objects;
 
 import org.apache.hadoop.hbase.RegionMetrics;
+import org.apache.hadoop.hbase.ServerMetrics;
 import org.apache.hadoop.hbase.ServerName;
 import org.apache.hadoop.hbase.Size;
 import org.apache.hadoop.hbase.TableName;
@@ -74,10 +75,18 @@ public abstract class AbstractRegionNormalizer implements RegionNormalizer {
    * @return size of region in MB and if region is not found than -1
    */
   protected long getRegionSize(RegionInfo hri) {
-    ServerName sn =
-        masterServices.getAssignmentManager().getRegionStates().getRegionServerOfRegion(hri);
-    RegionMetrics regionLoad =
-        masterServices.getServerManager().getLoad(sn).getRegionMetrics().get(hri.getRegionName());
+    ServerName sn = masterServices.getAssignmentManager().getRegionStates().
+        getRegionServerOfRegion(hri);
+    if (sn == null) {
+      LOG.debug("{} region was not found on any Server", hri.getRegionNameAsString());
+      return -1;
+    }
+    ServerMetrics serverMetrics = masterServices.getServerManager().getLoad(sn);
+    if (serverMetrics == null) {
+      LOG.debug("server {} was not found in ServerManager", sn.getServerName());
+      return -1;
+    }
+    RegionMetrics regionLoad = serverMetrics.getRegionMetrics().get(hri.getRegionName());
     if (regionLoad == null) {
       LOG.debug("{} was not found in RegionsLoad", hri.getRegionNameAsString());
       return -1;
