@@ -173,6 +173,7 @@ public class CatalogJanitor extends ScheduledChore {
       if (!this.lastReport.isEmpty()) {
         LOG.warn(this.lastReport.toString());
       }
+      updateAssignmentManagerMetrics();
 
       if (isRIT(this.services.getAssignmentManager())) {
         LOG.warn("Playing-it-safe skipping merge/split gc'ing of regions from hbase:meta while " +
@@ -778,6 +779,17 @@ public class CatalogJanitor extends ScheduledChore {
       }
       this.closed = true;
     }
+  }
+
+  private void updateAssignmentManagerMetrics() {
+    services.getAssignmentManager().getAssignmentManagerMetrics()
+        .updateHoles(lastReport.getHoles().size());
+    services.getAssignmentManager().getAssignmentManagerMetrics()
+        .updateOverlaps(lastReport.getOverlaps().size());
+    services.getAssignmentManager().getAssignmentManagerMetrics()
+        .updateUnknownServerRegions(lastReport.getUnknownServers().size());
+    services.getAssignmentManager().getAssignmentManagerMetrics()
+        .updateEmptyRegionInfoRegions(lastReport.getEmptyRegionInfo().size());
   }
 
   private static void checkLog4jProperties() {
