@@ -565,7 +565,8 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
    * @throws IOException
    */
   private List<HStoreFile> loadStoreFiles(boolean warmup) throws IOException {
-    Collection<StoreFileInfo> files = fs.getStoreFiles(getColumnFamilyName());
+    Collection<StoreFileInfo> files =
+        this.storeEngine.getStoreFileManager().loadInitialFiles();
     return openStoreFiles(files, warmup);
   }
 

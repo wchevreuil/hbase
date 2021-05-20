@@ -176,6 +176,7 @@ import org.apache.hadoop.hbase.quotas.SpaceQuotaSnapshotNotifierFactory;
 import org.apache.hadoop.hbase.quotas.SpaceViolationPolicy;
 import org.apache.hadoop.hbase.regionserver.HRegionServer;
 import org.apache.hadoop.hbase.regionserver.RSRpcServices;
+import org.apache.hadoop.hbase.regionserver.StoreFileTrackingUtils;
 import org.apache.hadoop.hbase.replication.ReplicationException;
 import org.apache.hadoop.hbase.replication.ReplicationLoadSource;
 import org.apache.hadoop.hbase.replication.ReplicationPeerConfig;
@@ -1097,6 +1098,11 @@ public class HMaster extends HRegionServer implements MasterServices {
     getChoreService().scheduleChore(catalogJanitorChore);
     this.hbckChore = new HbckChore(this);
     getChoreService().scheduleChore(hbckChore);
+
+    // enable or cleanup storefile tracking feature
+    if (StoreFileTrackingUtils.isStoreFileTrackingPersistEnabled(conf)) {
+      StoreFileTrackingUtils.init(this);
+    }
 
     // NAMESPACE READ!!!!
     // Here we expect hbase:namespace to be online. See inside initClusterSchemaService.
