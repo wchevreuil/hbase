@@ -20,6 +20,7 @@ package org.apache.hadoop.hbase.regionserver;
 
 import java.io.IOException;
 import java.io.InterruptedIOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -133,6 +134,7 @@ import org.apache.hadoop.hbase.shaded.protobuf.generated.WALProtos.CompactionDes
 @InterfaceAudience.Private
 public class HStore implements Store, HeapSize, StoreConfigInformation, PropagatingConfigurationObserver {
   public static final String MEMSTORE_CLASS_NAME = "hbase.regionserver.memstore.class";
+  public static final String STORE_FLUSH_CONTEXT_CLASS_NAME = "hbase.regionserver.store.flush.context.class";
   public static final String COMPACTCHECKER_INTERVAL_MULTIPLIER_KEY =
       "hbase.server.compactchecker.interval.multiplier";
   public static final String BLOCKING_STOREFILES_KEY = "hbase.hstore.blockingStoreFiles";
@@ -161,8 +163,8 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
   volatile boolean forceMajor = false;
   /* how many bytes to write between status checks */
   static int closeCheckInterval = 0;
-  private AtomicLong storeSize = new AtomicLong();
-  private AtomicLong totalUncompressedBytes = new AtomicLong();
+  AtomicLong storeSize = new AtomicLong();
+  AtomicLong totalUncompressedBytes = new AtomicLong();
   private LongAdder memstoreOnlyRowReadsCount = new LongAdder();
   // rows that has cells from both memstore and files (or only files)
   private LongAdder mixedRowReadsCount = new LongAdder();
@@ -233,11 +235,11 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
   private int compactionCheckMultiplier;
   protected Encryption.Context cryptoContext = Encryption.Context.NONE;
 
-  private AtomicLong flushedCellsCount = new AtomicLong();
+  AtomicLong flushedCellsCount = new AtomicLong();
   private AtomicLong compactedCellsCount = new AtomicLong();
   private AtomicLong majorCompactedCellsCount = new AtomicLong();
-  private AtomicLong flushedCellsSize = new AtomicLong();
-  private AtomicLong flushedOutputFileSize = new AtomicLong();
+  AtomicLong flushedCellsSize = new AtomicLong();
+  AtomicLong flushedOutputFileSize = new AtomicLong();
   private AtomicLong compactedCellsSize = new AtomicLong();
   private AtomicLong majorCompactedCellsSize = new AtomicLong();
 
@@ -731,7 +733,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     return createStoreFileAndReader(info);
   }
 
-  private HStoreFile createStoreFileAndReader(StoreFileInfo info) throws IOException {
+  HStoreFile createStoreFileAndReader(StoreFileInfo info) throws IOException {
     info.setRegionCoprocessorHost(this.region.getCoprocessorHost());
     HStoreFile storeFile = new HStoreFile(this.getFileSystem(), info, this.conf, this.cacheConf,
         this.family.getBloomFilterType(), isPrimaryReplicaStore());
@@ -1094,7 +1096,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
    * @return store file created.
    * @throws IOException
    */
-  private HStoreFile commitFile(Path path, long logCacheFlushId, MonitoredTask status)
+  HStoreFile commitFile(Path path, long logCacheFlushId, MonitoredTask status)
       throws IOException {
     // Write-out finished successfully, move into the right spot
     Path dstPath = fs.commitStoreFile(getColumnFamilyName(), path);
@@ -1189,7 +1191,7 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
    * @throws IOException
    * @return Whether compaction is required.
    */
-  private boolean updateStorefiles(List<HStoreFile> sfs, long snapshotId) throws IOException {
+  boolean updateStorefiles(List<HStoreFile> sfs, long snapshotId) throws IOException {
     this.lock.writeLock().lock();
     try {
       this.storeEngine.getStoreFileManager().insertNewFiles(sfs);
@@ -2328,151 +2330,15 @@ public class HStore implements Store, HeapSize, StoreConfigInformation, Propagat
     }
   }
 
-  public StoreFlushContext createFlushContext(long cacheFlushId, FlushLifeCycleTracker tracker) {
-    return new StoreFlusherImpl(cacheFlushId, tracker);
-  }
-
-  private final class StoreFlusherImpl implements StoreFlushContext {
-
-    private final FlushLifeCycleTracker tracker;
-    private final long cacheFlushSeqNum;
-    private MemStoreSnapshot snapshot;
-    private List<Path> tempFiles;
-    private List<Path> committedFiles;
-    private long cacheFlushCount;
-    private long cacheFlushSize;
-    private long outputFileSize;
-
-    private StoreFlusherImpl(long cacheFlushSeqNum, FlushLifeCycleTracker tracker) {
-      this.cacheFlushSeqNum = cacheFlushSeqNum;
-      this.tracker = tracker;
-    }
-
-    /**
-     * This is not thread safe. The caller should have a lock on the region or the store.
-     * If necessary, the lock can be added with the patch provided in HBASE-10087
-     */
-    @Override
-    public MemStoreSize prepare() {
-      // passing the current sequence number of the wal - to allow bookkeeping in the memstore
-      this.snapshot = memstore.snapshot();
-      this.cacheFlushCount = snapshot.getCellsCount();
-      this.cacheFlushSize = snapshot.getDataSize();
-      committedFiles = new ArrayList<>(1);
-      return snapshot.getMemStoreSize();
-    }
-
-    @Override
-    public void flushCache(MonitoredTask status) throws IOException {
-      RegionServerServices rsService = region.getRegionServerServices();
-      ThroughputController throughputController =
-          rsService == null ? null : rsService.getFlushThroughputController();
-      tempFiles =
-          HStore.this.flushCache(cacheFlushSeqNum, snapshot, status, throughputController, tracker);
-    }
-
-    @Override
-    public boolean commit(MonitoredTask status) throws IOException {
-      if (CollectionUtils.isEmpty(this.tempFiles)) {
-        return false;
-      }
-      List<HStoreFile> storeFiles = new ArrayList<>(this.tempFiles.size());
-      for (Path storeFilePath : tempFiles) {
-        try {
-          HStoreFile sf = HStore.this.commitFile(storeFilePath, cacheFlushSeqNum, status);
-          outputFileSize += sf.getReader().length();
-          storeFiles.add(sf);
-        } catch (IOException ex) {
-          LOG.error("Failed to commit store file {}", storeFilePath, ex);
-          // Try to delete the files we have committed before.
-          for (HStoreFile sf : storeFiles) {
-            Path pathToDelete = sf.getPath();
-            try {
-              sf.deleteStoreFile();
-            } catch (IOException deleteEx) {
-              LOG.error(HBaseMarkers.FATAL, "Failed to delete store file we committed, "
-                  + "halting {}", pathToDelete, ex);
-              Runtime.getRuntime().halt(1);
-            }
-          }
-          throw new IOException("Failed to commit the flush", ex);
-        }
-      }
-
-      for (HStoreFile sf : storeFiles) {
-        if (HStore.this.getCoprocessorHost() != null) {
-          HStore.this.getCoprocessorHost().postFlush(HStore.this, sf, tracker);
-        }
-        committedFiles.add(sf.getPath());
-      }
-
-      HStore.this.flushedCellsCount.addAndGet(cacheFlushCount);
-      HStore.this.flushedCellsSize.addAndGet(cacheFlushSize);
-      HStore.this.flushedOutputFileSize.addAndGet(outputFileSize);
-
-      // Add new file to store files.  Clear snapshot too while we have the Store write lock.
-      return HStore.this.updateStorefiles(storeFiles, snapshot.getId());
-    }
-
-    @Override
-    public long getOutputFileSize() {
-      return outputFileSize;
-    }
-
-    @Override
-    public List<Path> getCommittedFiles() {
-      return committedFiles;
-    }
-
-    /**
-     * Similar to commit, but called in secondary region replicas for replaying the
-     * flush cache from primary region. Adds the new files to the store, and drops the
-     * snapshot depending on dropMemstoreSnapshot argument.
-     * @param fileNames names of the flushed files
-     * @param dropMemstoreSnapshot whether to drop the prepared memstore snapshot
-     * @throws IOException
-     */
-    @Override
-    public void replayFlush(List<String> fileNames, boolean dropMemstoreSnapshot)
-        throws IOException {
-      List<HStoreFile> storeFiles = new ArrayList<>(fileNames.size());
-      for (String file : fileNames) {
-        // open the file as a store file (hfile link, etc)
-        StoreFileInfo storeFileInfo = fs.getStoreFileInfo(getColumnFamilyName(), file);
-        HStoreFile storeFile = createStoreFileAndReader(storeFileInfo);
-        storeFiles.add(storeFile);
-        HStore.this.storeSize.addAndGet(storeFile.getReader().length());
-        HStore.this.totalUncompressedBytes
-            .addAndGet(storeFile.getReader().getTotalUncompressedBytes());
-        if (LOG.isInfoEnabled()) {
-          LOG.info("Region: " + HStore.this.getRegionInfo().getEncodedName() +
-            " added " + storeFile + ", entries=" + storeFile.getReader().getEntries() +
-              ", sequenceid=" + storeFile.getReader().getSequenceID() + ", filesize="
-              + TraditionalBinaryPrefix.long2String(storeFile.getReader().length(), "", 1));
-        }
-      }
-
-      long snapshotId = -1; // -1 means do not drop
-      if (dropMemstoreSnapshot && snapshot != null) {
-        snapshotId = snapshot.getId();
-        snapshot.close();
-      }
-      HStore.this.updateStorefiles(storeFiles, snapshotId);
-    }
-
-    /**
-     * Abort the snapshot preparation. Drops the snapshot if any.
-     * @throws IOException
-     */
-    @Override
-    public void abort() throws IOException {
-      if (snapshot != null) {
-        //We need to close the snapshot when aborting, otherwise, the segment scanner
-        //won't be closed. If we are using MSLAB, the chunk referenced by those scanners
-        //can't be released, thus memory leak
-        snapshot.close();
-        HStore.this.updateStorefiles(Collections.emptyList(), snapshot.getId());
-      }
+  public StoreFlushContext createFlushContext(long cacheFlushId, FlushLifeCycleTracker tracker)
+      throws IOException {
+    Class<StoreFlushContext> flushContextClass = (Class<StoreFlushContext>)
+      conf.getClass(STORE_FLUSH_CONTEXT_CLASS_NAME, DefaultStoreFlushContext.class);
+    try {
+      return flushContextClass.getConstructor(HStore.class, Long.class, FlushLifeCycleTracker.class)
+        .newInstance(this, cacheFlushId, tracker);
+    } catch (Exception e) {
+      throw new IOException(e);
     }
   }
 
